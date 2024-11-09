@@ -1,18 +1,17 @@
 {
-  "dependencies": {
-    "dotenv": "^16.4.5",
-    "express": "^4.21.1"
-  },
-  "name": "distrack-endpoint-server",
-  "version": "0.1",
-  "description": "Discord Bot endpoint url",
+  "name": "DisTrack EndPoint",
+  "version": "0.2.1",
+  "description": "Endpoints for DisTrack Extension",
   "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server.js"
   },
-  "keywords": [
-    "distrack-endpoint-server"
-  ],
-  "author": "Jay",
-  "license": "MIT"
+  "dependencies": {
+    "express": "^5.0.1",
+    "mongoose": "^8.8.1",
+    "dotenv": "^16.4.5"
+  },
+  "engines": {
+    "node": "16.x"
+  }
 }
