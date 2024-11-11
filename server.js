@@ -1,20 +1,94 @@
 const express = require('express');
 const app = express();
 const { connectToDatabase } = require('./database.js');
-const PORT = process.env.PORT || 3000;
+const PORT = 7071;
 const User = require('./User.js');
 
 app.use(express.json());
 
 connectToDatabase();
 
-app.post('/coding-session', (req, res) => {
-    const { user, duration } = req.body;
-    console.log(`User: ${user}, Duration: ${duration} seconds`);
-    res.json({ message: 'Coding session recorded!' });
+app.get('/', (req, res) => {
+    res.send('Hello from the server!');
+    res.send('Server is running!');
+    console.log('Server is running!');
+});
+
+app.post('/coding-session', async (req, res) => {
+    console.log('Received coding session request:', req.body);
+    const { userId, duration, sessionDate, languages } = req.body;
+
+    if (!userId || !duration || !sessionDate) {
+        console.log('Missing required fields:', { userId, duration, sessionDate });
+        return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    try {
+        let user = await User.findOne({ userId });
+        console.log('User found:', user);
+        const today = new Date(sessionDate);
+
+        // If user doesn't exist, create a new document
+        if (!user) {
+            console.log('Creating new user:', userId);
+            user = new User({ userId });
+        }
+
+        const lastSessionDate = user.lastSessionDate ? new Date(user.lastSessionDate) : null;
+        console.log('Last session date:', lastSessionDate);
+
+        // Update total coding time
+        user.totalCodingTime += duration;
+        console.log('Updated total coding time:', user.totalCodingTime);
+
+        // Streak logic
+        if (lastSessionDate) {
+            const daysBetween = Math.floor((today - lastSessionDate) / (1000 * 60 * 60 * 24));
+            console.log('Days between sessions:', daysBetween);
+
+            if (daysBetween === 1) {
+                user.currentStreak += 1;
+                console.log('Increased streak:', user.currentStreak);
+            } else if (daysBetween > 1) {
+                user.currentStreak = 1;
+                console.log('Reset streak to 1');
+            }
+        } else {
+            user.currentStreak = 1;
+            console.log('First session, streak set to 1');
+        }
+
+        // Update longest streak if the current streak exceeds it
+        if (user.currentStreak > user.longestStreak) {
+            user.longestStreak = user.currentStreak;
+            console.log('Updated longest streak:', user.longestStreak);
+        }
+
+        // Update last session date
+        user.lastSessionDate = today;
+        console.log('Updated last session date:', user.lastSessionDate);
+
+        // Update language-specific coding time
+        for (const lang in languages) {
+            if (languages.hasOwnProperty(lang) && user.languages.hasOwnProperty(lang)) {
+                user.languages[lang] += languages[lang];
+                console.log(`Updated ${lang} time:`, user.languages[lang]);
+            }
+        }
+
+        // Save the updated user document
+        await user.save();
+        console.log('User saved successfully');
+
+        res.status(200).json({ message: "Session recorded successfully!" });
+    } catch (error) {
+        console.error("Error recording session:", error);
+        res.status(500).json({ message: "Error recording session" });
+    }
 });
 
 app.post('/link', async (req, res) => {
+    console.log("POST /link endpoint hit");
     const { userId } = req.body;
 
     try {

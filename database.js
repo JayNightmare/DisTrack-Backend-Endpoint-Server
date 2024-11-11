@@ -6,8 +6,8 @@ async function connectToDatabase() {
         await mongoose.connect(MONGODB_URI, {
             useNewUrlParser: true,
             useUnifiedTopology: true,
-            serverSelectionTimeoutMS: 20000, // Increase timeout to 20 seconds
-            bufferCommands: false,           // Disable operation buffering
+            serverSelectionTimeoutMS: 20000,
+            bufferCommands: false,
         });
         console.log("Connected to MongoDB");
     } catch (error) {
