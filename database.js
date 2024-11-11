@@ -22,8 +22,10 @@ const dbName = process.env.DB; // Database name from environment variable
 const client = new MongoClient(uri, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
-    tls: true, // Enables TLS/SSL
-    tlsInsecure: false, // Ensures SSL certificate validation
+    tls: true,
+    tlsAllowInvalidCertificates: true,
+    connectTimeoutMS: 30000,
+    socketTimeoutMS: 45000
 });
 
 async function connectToDatabase() {
