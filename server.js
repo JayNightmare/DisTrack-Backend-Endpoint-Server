@@ -16,7 +16,7 @@ app.get('/', (req, res) => {
 });
 
 // Secret for verifying the GitHub webhook (set this to the same secret you use in GitHub's webhook settings)
-const GITHUB_WEBHOOK_SECRET = 'your-github-webhook-secret';
+const GITHUB_WEBHOOK_SECRET = process.env.GITHUB_WEBHOOK_SECRET;
 
 // GitHub Signature Verification
 function verifyGitHubSignature(req) {

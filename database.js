@@ -18,14 +18,15 @@ const { MongoClient } = require('mongodb');
 
 
 const uri = process.env.MONGODB_URI; // Use the MongoDB URI from the environment variable
-const db = process.env.DB;
+const dbName = process.env.DB;
 const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
 
 async function connectToDatabase() {
-    if (!client.isConnected()) {
+    if (!client.topology?.isConnected()) {
         await client.connect();
+        console.log("Connected to MongoDB");
     }
-    return client.db(db);
+    return client.db(dbName); // Return the database instance
 }
 
 module.exports = { connectToDatabase };
