@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('crypto');
 const app = express();
 const { connectToDatabase } = require('./database.js');
 const PORT = 7071;
@@ -12,6 +13,64 @@ app.get('/', (req, res) => {
     res.send('Hello from the server!');
     res.send('Server is running!');
     console.log('Server is running!');
+});
+
+// Secret for verifying the GitHub webhook (set this to the same secret you use in GitHub's webhook settings)
+const GITHUB_WEBHOOK_SECRET = 'your-github-webhook-secret';
+
+// GitHub Signature Verification
+function verifyGitHubSignature(req) {
+    const signature = req.headers['x-hub-signature-256'];
+    const payload = JSON.stringify(req.body);
+    const hmac = crypto.createHmac('sha256', GITHUB_WEBHOOK_SECRET);
+    const digest = 'sha256=' + hmac.update(payload).digest('hex');
+    return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(digest));
+}
+
+app.post('/webhook/github', async (req, res) => {
+    if (!verifyGitHubSignature(req)) {
+        return res.status(403).send('Forbidden');
+    }
+
+    const { action, sender } = req.body;
+    const githubUsername = sender.login; // GitHub username from the webhook payload
+
+    try {
+        if (action === 'created') { // New sponsorship event
+            // Find a user with a matching GitHub username (set via /premium command)
+            const user = await User.findOne({ githubUsername });
+
+            if (user) {
+                // User found, grant them premium status and add a badge
+                user.premium = true;
+                user.badges.push({ name: 'Sponsor', icon: '<:sponsor:emoji_id>', dateEarned: new Date() });
+                await user.save();
+                console.log(`${githubUsername} is now a premium member!`);
+                
+                // Send confirmation to Discord (optional)
+                // Your Discord webhook code here to notify the dev server
+            } else {
+                // No match found, log info
+                console.log(`No matching user found for GitHub username: ${githubUsername}`);
+            }
+
+            res.status(200).json({ message: `${githubUsername} sponsorship processed.` });
+        } else if (action === 'cancelled') { // Optional: Handle canceled sponsorship
+            const user = await User.findOne({ githubUsername });
+            if (user && user.premium) {
+                user.premium = false;
+                await user.save();
+                console.log(`Premium status removed for: ${githubUsername}`);
+            }
+
+            res.status(200).json({ message: `${githubUsername}'s premium status removed.` });
+        } else {
+            res.status(200).json({ message: "Webhook received, no action taken." });
+        }
+    } catch (error) {
+        console.error("Error processing GitHub webhook:", error);
+        res.status(500).json({ message: "Error processing GitHub webhook." });
+    }
 });
 
 app.post('/coding-session', async (req, res) => {

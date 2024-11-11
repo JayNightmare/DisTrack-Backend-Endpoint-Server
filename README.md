@@ -1,19 +1,20 @@
-Here’s a `README.md` template for your endpoint server, which explains its purpose, setup, and usage.
-
-```markdown
 # DisTrack Endpoint Server
 
 This is the backend server for the DisTrack Discord bot and VSCode extension integration. It handles and stores coding session data from the VSCode extension and provides an API for the Discord bot to retrieve and display this data.
 
 ## Table of Contents
-- [Overview](#overview)
-- [Features](#features)
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [API Endpoints](#api-endpoints)
-- [Usage](#usage)
-- [Contributing](#contributing)
-- [License](#license)
+- [DisTrack Endpoint Server](#distrack-endpoint-server)
+  - [Table of Contents](#table-of-contents)
+  - [Overview](#overview)
+  - [Features](#features)
+  - [Installation](#installation)
+  - [Configuration](#configuration)
+  - [API Endpoints](#api-endpoints)
+    - [POST `/coding-session`](#post-coding-session)
+    - [POST `/link`](#post-link)
+  - [Usage](#usage)
+  - [Contributing](#contributing)
+  - [License](#license)
 
 ## Overview
 

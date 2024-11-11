@@ -7,9 +7,11 @@
     "start": "node server.js"
   },
   "dependencies": {
+    "crypto": "^1.0.1",
+    "dotenv": "^16.4.5",
     "express": "^5.0.1",
     "mongoose": "^8.8.1",
-    "dotenv": "^16.4.5"
+    "nginx": "^1.0.8"
   },
   "engines": {
     "node": "16.x"
