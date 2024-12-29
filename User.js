@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 
 const userSchema = new mongoose.Schema({
     userId: { type: String, required: true, unique: true },
-    username: { type: String, default: null },
+    username: { type: String },
     totalCodingTime: { type: Number, default: 0 },
     currentStreak: { type: Number, default: 0 },
     longestStreak: { type: Number, default: 0 },
