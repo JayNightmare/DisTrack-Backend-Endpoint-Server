@@ -106,6 +106,26 @@ app.post('/link', async (req, res) => {
     }
 });
 
+// * Fetch leaderboard stats - top 10 users by longest coding time
+app.get('/leaderboard', async (req, res) => { // Add 'req' parameter
+    console.log("GET /leaderboard endpoint hit");
+    try {
+        const users = await User.find().sort({ totalCodingTime: -1 });
+        const leaderboard = users.slice(0, 10).map((user) => ({
+            username: user.username || 'Anonymous', // Ensure username exists
+            totalCodingTime: user.totalCodingTime,
+            userId: user.userId
+        }));
+        res.status(200).json(leaderboard); // Send array directly instead of wrapping in object
+    } catch (error) {
+        console.error("Error fetching leaderboard:", error);
+        res.status(500).json({ 
+            error: "Internal server error",
+            details: error.message 
+        });
+    }
+});
+
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
