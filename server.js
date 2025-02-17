@@ -126,6 +126,33 @@ app.get('/leaderboard', async (req, res) => { // Add 'req' parameter
     }
 });
 
+app.get('/user-profile/:userId', async (req, res) => {
+    const { userId } = req.params;
+    console.log(`GET /user-profile/${userId} endpoint hit`);
+
+    try {
+        const user = await User.findOne({ userId });
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        const userProfile = {
+            userId: user.userId,
+            username: user.username,
+            totalCodingTime: user.totalCodingTime,
+            currentStreak: user.currentStreak,
+            longestStreak: user.longestStreak,
+            lastSessionDate: user.lastSessionDate
+        };
+
+        res.status(200).json(userProfile);
+        console.log(`User profile for ${userId} retrieved successfully.`);
+    } catch (error) {
+        console.error("Error fetching user profile:", error);
+        res.status(500).json({ message: "Error fetching user profile" });
+    }
+});
+
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
