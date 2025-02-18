@@ -10,7 +10,6 @@ connectToDatabase();
 
 app.get('/', (req, res) => {
     res.send('Hello from the server!');
-    res.send('Server is running!');
     console.log('Server is running!');
 });
 
@@ -83,7 +82,7 @@ app.post('/coding-session', async (req, res) => {
         res.status(200).json({ message: "Session recorded successfully!" });
     } catch (error) {
         console.error("Error recording session:", error);
-        res.status(500).json({ message: "Error recording session" });
+        return res.status(500).json({ message: "Error recording session" });
     }
 });
 
@@ -102,7 +101,7 @@ app.post('/link', async (req, res) => {
         console.log(`User ${userId} linked successfully.`);
     } catch (error) {
         console.error("Error linking user:", error);
-        res.status(500).json({ message: "Error linking user" });
+        return res.status(500).json({ message: "Error linking user" });
     }
 });
 
@@ -119,7 +118,7 @@ app.get('/leaderboard', async (req, res) => { // Add 'req' parameter
         res.status(200).json(leaderboard); // Send array directly instead of wrapping in object
     } catch (error) {
         console.error("Error fetching leaderboard:", error);
-        res.status(500).json({ 
+        return res.status(500).json({ 
             error: "Internal server error",
             details: error.message 
         });
@@ -149,7 +148,7 @@ app.get('/user-profile/:userId', async (req, res) => {
         console.log(`User profile for ${userId} retrieved successfully.`);
     } catch (error) {
         console.error("Error fetching user profile:", error);
-        res.status(500).json({ message: "Error fetching user profile" });
+        return res.status(500).json({ message: "Error fetching user profile" });
     }
 });
 
