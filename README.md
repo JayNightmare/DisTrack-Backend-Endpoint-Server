@@ -1,4 +1,11 @@
-# DisTrack Endpoint Server
+<div align=center>
+  <img src="images/New Distrack.jpg" width=225 radius=10 />
+</div>
+
+<div align=center>
+  <h1>Dis.Track</h1>
+  <h2>DisTrack Endpoint Server</h2>
+</div>
 
 This is the backend server for the DisTrack Discord bot and VSCode extension integration. It handles and stores coding session data from the VSCode extension and provides an API for the Discord bot to retrieve and display this data.
 
