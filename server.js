@@ -3,6 +3,8 @@ const app = express();
 const { connectToDatabase } = require('./database.js');
 const PORT = 7071;
 const User = require('./User.js');
+const jwt = require('jsonwebtoken');
+const { API_KEY } = require('./config.js');
 
 app.use(express.json());
 
@@ -13,7 +15,7 @@ app.get('/', (req, res) => {
     console.log('Server is running!');
 });
 
-app.post('/coding-session', async (req, res) => {
+app.post('/coding-session', authenticateToken, async (req, res) => {
     console.log('Received coding session request:', req.body);
     const { userId, duration, sessionDate, languages } = req.body;
 
@@ -86,7 +88,7 @@ app.post('/coding-session', async (req, res) => {
     }
 });
 
-app.post('/link', async (req, res) => {
+app.post('/link', authenticateToken, async (req, res) => {
     console.log("POST /link endpoint hit");
     const { userId } = req.body;
 
@@ -106,7 +108,7 @@ app.post('/link', async (req, res) => {
 });
 
 // * Fetch leaderboard stats - top 10 users by longest coding time
-app.get('/leaderboard', async (req, res) => { // Add 'req' parameter
+app.get('/leaderboard', authenticateToken, async (req, res) => { // Add 'req' parameter
     console.log("GET /leaderboard endpoint hit");
     try {
         const users = await User.find().sort({ totalCodingTime: -1 });
@@ -125,7 +127,7 @@ app.get('/leaderboard', async (req, res) => { // Add 'req' parameter
     }
 });
 
-app.get('/user-profile/:userId', async (req, res) => {
+app.get('/user-profile/:userId', authenticateToken, async (req, res) => {
     const { userId } = req.params;
     console.log(`GET /user-profile/${userId} endpoint hit`);
 
@@ -153,7 +155,7 @@ app.get('/user-profile/:userId', async (req, res) => {
 });
 
 // Get streak data for a user
-app.get('/streak/:userId', async (req, res) => {
+app.get('/streak/:userId', authenticateToken, async (req, res) => {
     const { userId } = req.params;
     console.log(`GET /streak/${userId} endpoint hit`);
 
@@ -180,7 +182,7 @@ app.get('/streak/:userId', async (req, res) => {
 });
 
 // Get language durations for a user
-app.get('/languages/:userId', async (req, res) => {
+app.get('/languages/:userId', authenticateToken, async (req, res) => {
     const { userId } = req.params;
     console.log(`GET /languages/${userId} endpoint hit`);
 
@@ -199,38 +201,40 @@ app.get('/languages/:userId', async (req, res) => {
         console.log(`Language durations for ${userId} retrieved successfully.`);
     } catch (error) {
         console.error("Error fetching language durations:", error);
-        return res.status(500).json({ 
+        return res.status(500).json({
             message: "Error fetching language durations",
             defaultValues: {}
         });
     }
 });
 
-// Update streak data for a user
-app.post('/update-streak', async (req, res) => {
-    const { userId, currentStreak, longestStreak } = req.body;
-    console.log(`POST /update-streak endpoint hit for user ${userId}`);
-
-    try {
-        const user = await User.findOne({ userId });
-        if (!user) {
-            return res.status(404).json({ message: "User not found" });
-        }
-
-        // Update streak data
-        user.currentStreak = currentStreak;
-        if (currentStreak > user.longestStreak) {
-            user.longestStreak = currentStreak;
-        }
-
-        await user.save();
-        res.status(200).json({ message: "Streak updated successfully" });
-        console.log(`Streak data for ${userId} updated successfully.`);
-    } catch (error) {
-        console.error("Error updating streak:", error);
-        return res.status(500).json({ message: "Error updating streak" });
+// Middleware for API key authentication
+function authenticateApiKey(req, res, next) {
+    const apiKey = req.headers['x-api-key'];
+    if (!apiKey || apiKey !== API_KEY) {
+        return res.status(403).json({ message: 'Forbidden: Invalid API Key' });
     }
-});
+    next();
+}
+
+// Middleware for token authentication
+function authenticateToken(req, res, next) {
+    const token = req.headers['authorization']?.split(' ')[1];
+    if (!token) {
+        return res.status(401).json({ message: 'Unauthorized: Token missing' });
+    }
+
+    jwt.verify(token, API_KEY, (err, user) => {
+        if (err) {
+            return res.status(403).json({ message: 'Forbidden: Invalid token' });
+        }
+        req.user = user;
+        next();
+    });
+}
+
+// Apply API key authentication globally
+app.use(authenticateApiKey);
 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
