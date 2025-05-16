@@ -152,6 +152,86 @@ app.get('/user-profile/:userId', async (req, res) => {
     }
 });
 
+// Get streak data for a user
+app.get('/streak/:userId', async (req, res) => {
+    const { userId } = req.params;
+    console.log(`GET /streak/${userId} endpoint hit`);
+
+    try {
+        const user = await User.findOne({ userId });
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        const streakData = {
+            currentStreak: user.currentStreak,
+            longestStreak: user.longestStreak
+        };
+
+        res.status(200).json(streakData);
+        console.log(`Streak data for ${userId} retrieved successfully.`);
+    } catch (error) {
+        console.error("Error fetching streak data:", error);
+        return res.status(500).json({ 
+            message: "Error fetching streak data",
+            defaultValues: { currentStreak: 0, longestStreak: 0 }
+        });
+    }
+});
+
+// Get language durations for a user
+app.get('/languages/:userId', async (req, res) => {
+    const { userId } = req.params;
+    console.log(`GET /languages/${userId} endpoint hit`);
+
+    try {
+        const user = await User.findOne({ userId });
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        // Filter out languages with 0 duration
+        const languages = Object.fromEntries(
+            Object.entries(user.languages).filter(([_, duration]) => duration > 0)
+        );
+
+        res.status(200).json(languages);
+        console.log(`Language durations for ${userId} retrieved successfully.`);
+    } catch (error) {
+        console.error("Error fetching language durations:", error);
+        return res.status(500).json({ 
+            message: "Error fetching language durations",
+            defaultValues: {}
+        });
+    }
+});
+
+// Update streak data for a user
+app.post('/update-streak', async (req, res) => {
+    const { userId, currentStreak, longestStreak } = req.body;
+    console.log(`POST /update-streak endpoint hit for user ${userId}`);
+
+    try {
+        const user = await User.findOne({ userId });
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        // Update streak data
+        user.currentStreak = currentStreak;
+        if (currentStreak > user.longestStreak) {
+            user.longestStreak = currentStreak;
+        }
+
+        await user.save();
+        res.status(200).json({ message: "Streak updated successfully" });
+        console.log(`Streak data for ${userId} updated successfully.`);
+    } catch (error) {
+        console.error("Error updating streak:", error);
+        return res.status(500).json({ message: "Error updating streak" });
+    }
+});
+
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
