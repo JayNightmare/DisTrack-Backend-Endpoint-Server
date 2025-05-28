@@ -3,7 +3,6 @@ const app = express();
 const { connectToDatabase } = require('./database.js');
 const PORT = 7071;
 const User = require('./User.js');
-const jwt = require('jsonwebtoken');
 const { API_KEY } = require('./config.js');
 
 app.use(express.json());
@@ -210,27 +209,11 @@ app.get('/languages/:userId', authenticateToken, async (req, res) => {
 
 // Middleware for API key authentication
 function authenticateApiKey(req, res, next) {
-    const apiKey = req.headers['x-api-key'];
-    if (!apiKey || apiKey !== API_KEY) {
+    const token = req.headers['authorization']?.split(' ')[1];
+    if (!token || token !== API_KEY) {
         return res.status(403).json({ message: 'Forbidden: Invalid API Key' });
     }
     next();
-}
-
-// Middleware for token authentication
-function authenticateToken(req, res, next) {
-    const token = req.headers['authorization']?.split(' ')[1];
-    if (!token) {
-        return res.status(401).json({ message: 'Unauthorized: Token missing' });
-    }
-
-    jwt.verify(token, API_KEY, (err, user) => {
-        if (err) {
-            return res.status(403).json({ message: 'Forbidden: Invalid token' });
-        }
-        req.user = user;
-        next();
-    });
 }
 
 // Apply API key authentication globally
