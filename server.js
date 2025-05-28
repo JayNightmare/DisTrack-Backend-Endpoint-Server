@@ -215,7 +215,7 @@ function authenticateApiKey(req, res, next) {
     }
     next();
 }
- 
+
 // Apply API key authentication globally
 app.use(authenticateApiKey);
 
