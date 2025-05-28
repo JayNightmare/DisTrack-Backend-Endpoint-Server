@@ -14,7 +14,7 @@ app.get('/', (req, res) => {
     console.log('Server is running!');
 });
 
-app.post('/coding-session', authenticateToken, async (req, res) => {
+app.post('/coding-session', async (req, res) => {
     console.log('Received coding session request:', req.body);
     const { userId, duration, sessionDate, languages } = req.body;
 
@@ -87,7 +87,7 @@ app.post('/coding-session', authenticateToken, async (req, res) => {
     }
 });
 
-app.post('/link', authenticateToken, async (req, res) => {
+app.post('/link', async (req, res) => {
     console.log("POST /link endpoint hit");
     const { userId } = req.body;
 
@@ -107,7 +107,7 @@ app.post('/link', authenticateToken, async (req, res) => {
 });
 
 // * Fetch leaderboard stats - top 10 users by longest coding time
-app.get('/leaderboard', authenticateToken, async (req, res) => { // Add 'req' parameter
+app.get('/leaderboard', async (req, res) => { // Add 'req' parameter
     console.log("GET /leaderboard endpoint hit");
     try {
         const users = await User.find().sort({ totalCodingTime: -1 });
@@ -126,7 +126,7 @@ app.get('/leaderboard', authenticateToken, async (req, res) => { // Add 'req' pa
     }
 });
 
-app.get('/user-profile/:userId', authenticateToken, async (req, res) => {
+app.get('/user-profile/:userId', async (req, res) => {
     const { userId } = req.params;
     console.log(`GET /user-profile/${userId} endpoint hit`);
 
@@ -154,7 +154,7 @@ app.get('/user-profile/:userId', authenticateToken, async (req, res) => {
 });
 
 // Get streak data for a user
-app.get('/streak/:userId', authenticateToken, async (req, res) => {
+app.get('/streak/:userId', async (req, res) => {
     const { userId } = req.params;
     console.log(`GET /streak/${userId} endpoint hit`);
 
@@ -181,7 +181,7 @@ app.get('/streak/:userId', authenticateToken, async (req, res) => {
 });
 
 // Get language durations for a user
-app.get('/languages/:userId', authenticateToken, async (req, res) => {
+app.get('/languages/:userId', async (req, res) => {
     const { userId } = req.params;
     console.log(`GET /languages/${userId} endpoint hit`);
 
