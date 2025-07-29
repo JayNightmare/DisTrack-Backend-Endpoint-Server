@@ -584,10 +584,10 @@ function authenticateApiKey(req, res, next) {
 // Apply API key authentication to protected routes only
 // Public routes: health checks, basic leaderboard
 // Protected routes: admin endpoints, session creation
-app.use("/admin/*", authenticateApiKey);
+app.use("/admin", authenticateApiKey);
 app.use("/coding-session", authenticateApiKey);
-app.use("/snapshot/*", authenticateApiKey);
-app.use("/snapshots/*", authenticateApiKey);
+app.use("/snapshot", authenticateApiKey);
+app.use("/snapshots", authenticateApiKey);
 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
