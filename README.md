@@ -29,9 +29,15 @@ The DisTrack Endpoint Server collects coding session data from the DisTrack VSCo
 
 ## Features
 
-- **Store Coding Session Data**: Records coding session duration, user language statistics, and last session date.
+- **Store Coding Session Data**: Records individual coding sessions with detailed metadata.
 - **User Management**: Links Discord user IDs with coding session data.
 - **Achievement Tracking**: Updates user achievements when coding milestones are reached.
+- **Leaderboard with Trends**: Track rank changes over different timeframes (day, week, month, allTime).
+- **Historical Snapshots**: Maintain historical leaderboard data for trend analysis.
+- **Scheduled Jobs**: Automated snapshot taking for consistent trend tracking.
+- **Session-Level Tracking**: Individual session records for accurate timeframe calculations.
+- **Health Monitoring**: Comprehensive system health checks and monitoring.
+- **Real-Time Analytics**: Live trend calculations based on actual session data.
 
 ## Installation
 
@@ -60,6 +66,8 @@ The DisTrack Endpoint Server collects coding session data from the DisTrack VSCo
    - Create a database for DisTrack (if not already done in the bot setup).
 
 ## API Endpoints
+
+### Core Endpoints
 
 ### POST `/coding-session`
 
@@ -97,12 +105,73 @@ The DisTrack Endpoint Server collects coding session data from the DisTrack VSCo
   }
   ```
 
+### Leaderboard Endpoints
+
+### GET `/leaderboard/:timeframe`
+
+- **Description**: Get leaderboard with rank trends for a specific timeframe.
+- **Parameters**:
+  - `timeframe` (string): "day", "week", "month", or "allTime"
+  - `limit` (query, optional): Number of top users to return (default: 10)
+  
+- **Example Response**:
+  ```json
+  [
+    {
+      "userId": "123456789012345678",
+      "username": "JohnDoe",
+      "rank": 1,
+      "totalTime": 3600,
+      "rankDelta": 2,
+      "previousRank": 3
+    }
+  ]
+  ```
+
+### POST `/snapshot/:timeframe`
+
+- **Description**: Take a snapshot of the current leaderboard for trend tracking.
+- **Parameters**:
+  - `timeframe` (string): "day", "week", "month", or "allTime"
+- **Body (optional)**:
+  ```json
+  {
+    "date": "2023-07-29T00:00:00Z"
+  }
+  ```
+
+### GET `/user/:userId/history/:timeframe`
+
+- **Description**: Get a user's rank history for a specific timeframe.
+- **Parameters**:
+  - `userId` (string): The user ID
+  - `timeframe` (string): "day", "week", "month", or "allTime"
+  - `limit` (query, optional): Number of historical records (default: 30)
+
 ## Usage
 
 1. **Start the Server**:
    - Run the following command to start the server:
      ```bash
-     node server.js
+     npm start
+     ```
+
+2. **Test Trend System**:
+   - Run the trend system test:
+     ```bash
+     npm run test-trends
+     ```
+
+3. **API Usage**:
+   - The server will be accessible at `http://localhost:7071` by default.
+   - Use tools like Postman or curl to test the endpoints.
+
+4. **Trend Tracking Setup**:
+   - Take initial snapshots: `POST /snapshots/all`
+   - Set up scheduled jobs for regular snapshots (see `LEADERBOARD_TRENDS.md`)
+   - Monitor system health: `GET /admin/snapshot/health`
+
+For detailed information about the trend tracking system, see `LEADERBOARD_TRENDS.md`.
      ```
 
 2. **Testing with Postman**:
