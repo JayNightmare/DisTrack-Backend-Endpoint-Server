@@ -8,6 +8,7 @@ const LeaderboardService = require("./LeaderboardService.js");
 const SnapshotScheduler = require("./SnapshotScheduler.js");
 const CronScheduler = require("./CronScheduler.js");
 const MonitoringService = require("./MonitoringService.js");
+const DataRetentionService = require("./DataRetentionService.js");
 const { API_KEY } = require("./config.js");
 
 app.use(express.json());
@@ -588,6 +589,43 @@ app.use("/admin", authenticateApiKey);
 app.use("/coding-session", authenticateApiKey);
 app.use("/snapshot", authenticateApiKey);
 app.use("/snapshots", authenticateApiKey);
+
+// Admin endpoint: Manual database cleanup
+app.post("/admin/cleanup", async (req, res) => {
+    console.log("POST /admin/cleanup endpoint hit");
+
+    try {
+        const result = await DataRetentionService.runFullCleanup();
+        res.status(200).json({
+            message: "Database cleanup completed successfully",
+            results: result,
+        });
+        console.log("Manual cleanup completed:", result);
+    } catch (error) {
+        console.error("Error during manual cleanup:", error);
+        res.status(500).json({
+            message: "Database cleanup failed",
+            error: error.message,
+        });
+    }
+});
+
+// Admin endpoint: Database statistics
+app.get("/admin/stats", async (req, res) => {
+    console.log("GET /admin/stats endpoint hit");
+
+    try {
+        const stats = await DataRetentionService.getDatabaseStats();
+        res.status(200).json(stats);
+        console.log("Database stats retrieved:", stats);
+    } catch (error) {
+        console.error("Error getting database stats:", error);
+        res.status(500).json({
+            message: "Failed to get database stats",
+            error: error.message,
+        });
+    }
+});
 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);

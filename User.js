@@ -12,7 +12,7 @@ const userSchema = new mongoose.Schema({
             target: Number,
             description: String,
             category: String,
-        }
+        },
     ],
     languages: {
         javascript: { type: Number, default: 0 },
@@ -40,6 +40,8 @@ const userSchema = new mongoose.Schema({
         properties: { type: Number, default: 0 },
     },
     lastSessionDate: { type: Date, default: null }, // New field to track last coding session date
+    archived: { type: Boolean, default: false }, // New field for archiving inactive users
+    archivedAt: { type: Date, default: null }, // New field to track when user was archived
 });
 
 module.exports = mongoose.model("User", userSchema);
