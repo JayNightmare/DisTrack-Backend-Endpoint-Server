@@ -19,6 +19,10 @@ This is the backend server for the DisTrack Discord bot and VSCode extension int
   - [API Endpoints](#api-endpoints)
     - [POST `/coding-session`](#post-coding-session)
     - [POST `/link`](#post-link)
+  - [Data Management](#data-management)
+    - [Automated Cleanup](#automated-cleanup)
+    - [Data Retention Policies](#data-retention-policies)
+    - [Manual Cleanup](#manual-cleanup)
   - [Usage](#usage)
   - [Contributing](#contributing)
   - [License](#license)
@@ -38,6 +42,9 @@ The DisTrack Endpoint Server collects coding session data from the DisTrack VSCo
 - **Session-Level Tracking**: Individual session records for accurate timeframe calculations.
 - **Health Monitoring**: Comprehensive system health checks and monitoring.
 - **Real-Time Analytics**: Live trend calculations based on actual session data.
+- **Automated Data Cleanup**: Smart data retention system to prevent database bloat.
+- **Data Aggregation**: Historical data preservation through intelligent aggregation.
+- **Storage Optimization**: Automatic cleanup of old data while maintaining trends.
 
 ## Installation
 
@@ -171,7 +178,67 @@ The DisTrack Endpoint Server collects coding session data from the DisTrack VSCo
    - Set up scheduled jobs for regular snapshots (see `LEADERBOARD_TRENDS.md`)
    - Monitor system health: `GET /admin/snapshot/health`
 
+5. **Database Management**:
+   - Monitor database stats: `GET /admin/stats`
+   - Trigger manual cleanup: `POST /admin/cleanup`
+   - Check cron job status: `GET /admin/cron/status`
+
 For detailed information about the trend tracking system, see `LEADERBOARD_TRENDS.md`.
+
+## Data Management
+
+### Automated Cleanup
+
+The server includes an intelligent data retention system that automatically manages database size:
+
+- **🕛 Schedule**: Cleanup runs every Sunday at 02:00 UTC
+- **📊 Monitoring**: Database statistics checked every Monday at 09:00 UTC
+- **⚠️ Alerts**: Automatic warnings when storage exceeds 100MB
+
+### Data Retention Policies
+
+| Data Type | Retention Period | Action |
+|-----------|------------------|---------|
+| **Coding Sessions** | 90 days | Aggregate then delete detailed records |
+| **Daily Snapshots** | 30 days | Delete old snapshots |
+| **Weekly Snapshots** | 6 months | Delete old snapshots |
+| **Monthly Snapshots** | 2 years | Delete old snapshots |
+| **All-Time Snapshots** | Forever | Never deleted |
+| **Inactive Users** | 1 year | Archive (mark as archived) |
+
+### Manual Cleanup
+
+#### Trigger Cleanup via API:
+```bash
+# Full cleanup
+curl -X POST http://localhost:7071/admin/cleanup \
+  -H "Authorization: Bearer YOUR_API_KEY"
+
+# Get database statistics
+curl -X GET http://localhost:7071/admin/stats \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+#### Trigger Cleanup via Code:
+```javascript
+// Manual cleanup
+const result = await CronScheduler.triggerSnapshot('cleanup');
+
+// Get database stats
+const stats = await DataRetentionService.getDatabaseStats();
+```
+
+#### What Happens During Cleanup:
+1. **Session Aggregation**: Old coding sessions are grouped by user/date and stored as aggregated records
+2. **Snapshot Cleanup**: Old leaderboard snapshots are removed based on retention policies
+3. **User Archiving**: Inactive users are marked as archived (not deleted)
+4. **Statistics Update**: Database size and health metrics are recalculated
+
+#### Benefits:
+- **Preserved Trends**: Historical data is aggregated, not lost
+- **Optimized Storage**: Database size stays manageable
+- **Performance**: Faster queries with less data
+- **Cost Effective**: Reduced storage costs for cloud deployments
      ```
 
 2. **Testing with Postman**:
