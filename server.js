@@ -260,7 +260,7 @@ app.get("/languages/:userId", async (req, res) => {
 // Get enhanced leaderboard with trends for a specific timeframe
 app.get("/leaderboard/:timeframe", async (req, res) => {
     const { timeframe } = req.params;
-    const { limit = 10 } = req.query;
+    const { limit = 50 } = req.query;
 
     console.log(`GET /leaderboard/${timeframe} endpoint hit (limit: ${limit})`);
 

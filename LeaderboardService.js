@@ -204,7 +204,7 @@ class LeaderboardService {
      * @param {number} limit - Number of top users to return (default: 10)
      * @returns {Promise<Array>} Leaderboard with rank deltas
      */
-    static async getLeaderboardWithTrends(timeframe, limit = 10) {
+    static async getLeaderboardWithTrends(timeframe, limit = 50) {
         try {
             console.log(
                 `Getting ${timeframe} leaderboard with trends (limit: ${limit})`
