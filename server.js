@@ -10,27 +10,31 @@ const CronScheduler = require("./CronScheduler.js");
 const MonitoringService = require("./MonitoringService.js");
 const DataRetentionService = require("./DataRetentionService.js");
 const { API_KEY } = require("./config.js");
+const cors = require("cors");
 
 app.use(express.json());
 
-// CORS middleware
-app.use((req, res, next) => {
-    res.header("Access-Control-Allow-Origin", "*");
-    res.header(
-        "Access-Control-Allow-Methods",
-        "GET, POST, PUT, DELETE, OPTIONS"
-    );
-    res.header(
-        "Access-Control-Allow-Headers",
-        "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-    );
+// CORS Configuration - Enhanced for better compatibility
+const corsOptions = {
+    origin:
+        process.env.NODE_ENV === "production"
+            ? ["https://distrack.endpoint-system.uk"]
+            : "*", // Allow all origins in development
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allowedHeaders: [
+        "Origin",
+        "X-Requested-With",
+        "Content-Type",
+        "Accept",
+        "Authorization",
+        "Cache-Control",
+    ],
+    credentials: false,
+    maxAge: 86400, // 24 hours
+    optionsSuccessStatus: 200, // For legacy browser support
+};
 
-    if (req.method === "OPTIONS") {
-        res.sendStatus(200);
-    } else {
-        next();
-    }
-});
+app.use(cors(corsOptions));
 
 // * Middleware for API key authentication
 function authenticateApiKey(req, res, next) {
@@ -302,6 +306,7 @@ app.get("/user-profile/:userId", async (req, res) => {
             isPublic: user.isPublic,
             timezone: user.timezone,
             bio: user.bio,
+            socials: user.socials || {},
             linkedAt: user.linkedAt,
             lastLinkedAt: user.lastLinkedAt,
             createdAt: user.createdAt,
@@ -319,14 +324,26 @@ app.get("/user-profile/:userId", async (req, res) => {
 // Update user profile
 app.put("/user-profile/:userId", async (req, res) => {
     const { userId } = req.params;
-    const { username, displayName, avatarUrl, isPublic, timezone, bio } =
-        req.body;
+    const {
+        username,
+        displayName,
+        avatarUrl,
+        isPublic,
+        timezone,
+        bio,
+        socials,
+    } = req.body;
     console.log(`PUT /user-profile/${userId} endpoint hit`);
+    console.log("Request body:", JSON.stringify(req.body, null, 2));
+
     try {
         const user = await User.findOne({ userId });
         if (!user) {
+            console.log(`User not found: ${userId}`);
             return res.status(404).json({ message: "User not found" });
         }
+
+        console.log("User found, updating fields...");
 
         // Update fields if provided
         if (username) user.username = username;
@@ -335,15 +352,35 @@ app.put("/user-profile/:userId", async (req, res) => {
         if (isPublic !== undefined) user.isPublic = isPublic;
         if (timezone) user.timezone = timezone;
         if (bio !== undefined) user.bio = bio;
+        if (socials !== undefined) user.socials = socials;
+
         user.lastLinkedAt = new Date(); // Update last linked date
 
         await user.save();
+        console.log(`User profile for ${userId} updated successfully`);
 
-        res.status(200).json({ message: "User profile updated successfully" });
+        res.status(200).json({
+            message: "User profile updated successfully",
+            user: {
+                userId: user.userId,
+                username: user.username,
+                displayName: user.displayName,
+                avatarUrl: user.avatarUrl,
+                bio: user.bio,
+                socials: user.socials,
+                isPublic: user.isPublic,
+                timezone: user.timezone,
+                totalCodingTime: user.totalCodingTime,
+                currentStreak: user.currentStreak,
+            },
+        });
         console.log(`User profile for ${userId} updated successfully.`);
     } catch (error) {
         console.error("Error updating user profile:", error);
-        return res.status(500).json({ message: "Error updating user profile" });
+        return res.status(500).json({
+            message: "Error updating user profile",
+            error: error.message,
+        });
     }
 });
 
@@ -718,15 +755,6 @@ app.get("/admin/sessions/recent", async (req, res) => {
         });
     }
 });
-
-// Middleware for API key authentication
-function authenticateApiKey(req, res, next) {
-    const token = req.headers["authorization"]?.split(" ")[1];
-    if (!token || token !== API_KEY) {
-        return res.status(403).json({ message: "Forbidden: Invalid API Key" });
-    }
-    next();
-}
 
 // Admin endpoint: Manual database cleanup
 app.post("/admin/cleanup", async (req, res) => {
