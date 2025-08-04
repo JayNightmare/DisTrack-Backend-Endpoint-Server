@@ -13,6 +13,7 @@ const userSchema = new mongoose.Schema(
         isPublic: { type: Boolean, default: true },
         timezone: { type: String, default: "GMT+1" },
         bio: { type: String, default: "", maxlength: 500 },
+        socials: { type: Object, default: {} },
         // //
         totalCodingTime: { type: Number, default: 0 },
         currentStreak: { type: Number, default: 0 },
