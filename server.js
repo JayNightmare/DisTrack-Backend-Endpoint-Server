@@ -13,6 +13,61 @@ const { API_KEY } = require("./config.js");
 
 app.use(express.json());
 
+// CORS middleware
+app.use((req, res, next) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header(
+        "Access-Control-Allow-Methods",
+        "GET, POST, PUT, DELETE, OPTIONS"
+    );
+    res.header(
+        "Access-Control-Allow-Headers",
+        "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+    );
+
+    if (req.method === "OPTIONS") {
+        res.sendStatus(200);
+    } else {
+        next();
+    }
+});
+
+// * Middleware for API key authentication
+function authenticateApiKey(req, res, next) {
+    const authHeader = req.headers["authorization"];
+    const token = authHeader?.startsWith("Bearer ")
+        ? authHeader.split(" ")[1]
+        : authHeader;
+
+    console.log("Auth check - Expected:", API_KEY?.substring(0, 10) + "...");
+    console.log("Auth check - Received:", token?.substring(0, 10) + "...");
+
+    if (!token || token !== API_KEY) {
+        console.log("Authentication failed for:", req.method, req.path);
+        return res.status(403).json({ message: "Forbidden: Invalid API Key" });
+    }
+    next();
+}
+
+// Apply API key authentication BEFORE routes (move this here!)
+app.use((req, res, next) => {
+    // Public endpoints that don't require authentication
+    const publicEndpoints = ["/", "/health"];
+
+    const isPublicLeaderboard =
+        req.path.startsWith("/leaderboard") && req.method === "GET";
+    const isPublicEndpoint = publicEndpoints.includes(req.path);
+
+    if (isPublicEndpoint || isPublicLeaderboard) {
+        console.log("Public endpoint accessed:", req.method, req.path);
+        return next();
+    }
+
+    // All other endpoints require authentication
+    console.log("Protected endpoint accessed:", req.method, req.path);
+    return authenticateApiKey(req, res, next);
+});
+
 connectToDatabase();
 
 // Initialize cron jobs for automated snapshots
@@ -24,6 +79,15 @@ app.get("/", (req, res) => {
         "EW! Stop lookingg at me FEMBOY! FEMBOYYYYY!!!! YOU'RE A FEMBOY! I KNOW YOU ARE! I CAN SEE IT IN YOUR EYES! YOU'RE A FEMBOY! STOP LOOKING AT ME, FEMBOY!"
     );
     console.log("Server is running!");
+});
+
+// * Health check endpoint
+app.get("/health", (req, res) => {
+    res.status(200).json({
+        status: "OK",
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+    });
 });
 
 // * Record the coding session
@@ -702,18 +766,18 @@ app.get("/admin/stats", async (req, res) => {
 });
 
 // Apply API key authentication to all endpoints except Leaderboard and root
-app.use((req, res, next) => {
-    if (
-        req.method === "POST" ||
-        req.method === "PUT" ||
-        req.method === "DELETE" ||
-        (req.method === "GET" &&
-            !(req.path.startsWith("/leaderboard") || req.path === "/"))
-    ) {
-        return authenticateApiKey(req, res, next);
-    }
-    next();
-});
+// app.use((req, res, next) => {
+//     if (
+//         req.method === "POST" ||
+//         req.method === "PUT" ||
+//         req.method === "DELETE" ||
+//         (req.method === "GET" &&
+//             !(req.path.startsWith("/leaderboard") || req.path === "/"))
+//     ) {
+//         return authenticateApiKey(req, res, next);
+//     }
+//     next();
+// });
 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
