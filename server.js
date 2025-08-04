@@ -240,6 +240,37 @@ app.get("/user-profile/:userId", async (req, res) => {
     }
 });
 
+// Update user profile
+app.put("/user-profile/:userId", async (req, res) => {
+    const { userId } = req.params;
+    const { username, displayName, avatarUrl, isPublic, timezone, bio } =
+        req.body;
+    console.log(`PUT /user-profile/${userId} endpoint hit`);
+    try {
+        const user = await User.findOne({ userId });
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        // Update fields if provided
+        if (username) user.username = username;
+        if (displayName) user.displayName = displayName;
+        if (avatarUrl) user.avatarUrl = avatarUrl;
+        if (isPublic !== undefined) user.isPublic = isPublic;
+        if (timezone) user.timezone = timezone;
+        if (bio !== undefined) user.bio = bio;
+        user.lastLinkedAt = new Date(); // Update last linked date
+
+        await user.save();
+
+        res.status(200).json({ message: "User profile updated successfully" });
+        console.log(`User profile for ${userId} updated successfully.`);
+    } catch (error) {
+        console.error("Error updating user profile:", error);
+        return res.status(500).json({ message: "Error updating user profile" });
+    }
+});
+
 // Get streak data for a user
 app.get("/streak/:userId", async (req, res) => {
     const { userId } = req.params;
