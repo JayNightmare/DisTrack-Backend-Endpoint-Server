@@ -1,4 +1,5 @@
 const express = require("express");
+const path = require("path");
 const app = express();
 const { connectToDatabase } = require("./database.js");
 const PORT = 7071;
@@ -57,10 +58,8 @@ CronScheduler.initializeJobs();
 
 // * Enter Point
 app.get("/", (req, res) => {
-    res.send(
-        "EW! Stop lookingg at me FEMBOY! FEMBOYYYYY!!!! YOU'RE A FEMBOY! I KNOW YOU ARE! I CAN SEE IT IN YOUR EYES! YOU'RE A FEMBOY! STOP LOOKING AT ME, FEMBOY!"
-    );
-    console.log("Server is running!");
+    res.sendFile(path.join(__dirname, "index.html"));
+    console.log("Server running! But someone is being a naughty femboy...");
 });
 
 // * Health check endpoint
