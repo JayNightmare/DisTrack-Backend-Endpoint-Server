@@ -223,13 +223,25 @@ app.get("/user-profile/:userId", async (req, res) => {
             return res.status(404).json({ message: "User not found" });
         }
 
+        // Return the complete user profile data
         const userProfile = {
             userId: user.userId,
             username: user.username,
+            displayName: user.displayName,
+            avatarUrl: user.avatarUrl,
+            discordId: user.discordId,
             totalCodingTime: user.totalCodingTime,
             currentStreak: user.currentStreak,
             longestStreak: user.longestStreak,
             lastSessionDate: user.lastSessionDate,
+            languages: user.languages,
+            isPublic: user.isPublic,
+            timezone: user.timezone,
+            bio: user.bio,
+            linkedAt: user.linkedAt,
+            lastLinkedAt: user.lastLinkedAt,
+            createdAt: user.createdAt,
+            updatedAt: user.updatedAt,
         };
 
         res.status(200).json(userProfile);
