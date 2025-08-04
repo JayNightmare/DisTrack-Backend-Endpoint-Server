@@ -18,11 +18,15 @@ connectToDatabase();
 // Initialize cron jobs for automated snapshots
 CronScheduler.initializeJobs();
 
+// * Enter Point
 app.get("/", (req, res) => {
-    res.send("Hello from the server!");
+    res.send(
+        "EW! Stop lookingg at me FEMBOY! FEMBOYYYYY!!!! YOU'RE A FEMBOY! I KNOW YOU ARE! I CAN SEE IT IN YOUR EYES! YOU'RE A FEMBOY! STOP LOOKING AT ME, FEMBOY!"
+    );
     console.log("Server is running!");
 });
 
+// * Record the coding session
 app.post("/coding-session", async (req, res) => {
     console.log("Received coding session request:", req.body);
     const { userId, duration, sessionDate, languages } = req.body;
@@ -134,19 +138,54 @@ app.post("/coding-session", async (req, res) => {
     }
 });
 
+// * Link user to the system - create or update user
 app.post("/link", async (req, res) => {
     console.log("POST /link endpoint hit");
-    const { userId } = req.body;
+    const { userId, username, displayName, avatarUrl, discordId } = req.body;
+
+    // Validate required fields
+    if (!userId || !username) {
+        return res.status(400).json({
+            message:
+                "Missing required fields: userId and username are required",
+        });
+    }
 
     try {
         let user = await User.findOne({ userId });
+
         if (!user) {
-            user = new User({ userId });
-            await user.save();
+            // Create new user with Discord profile data
+            user = new User({
+                userId,
+                username,
+                displayName: displayName || username,
+                avatarUrl: avatarUrl || null,
+                discordId: discordId || userId,
+                linkedAt: new Date(),
+            });
+        } else {
+            // Update existing user profile
+            user.username = username;
+            if (displayName) user.displayName = displayName;
+            if (avatarUrl) user.avatarUrl = avatarUrl;
+            if (discordId) user.discordId = discordId;
+            user.lastLinkedAt = new Date();
         }
 
-        res.status(200).json({ message: "User linked successfully" });
-        console.log(`User ${userId} linked successfully.`);
+        await user.save();
+
+        res.status(200).json({
+            message: "User linked successfully",
+            user: {
+                userId: user.userId,
+                username: user.username,
+                displayName: user.displayName,
+                avatarUrl: user.avatarUrl,
+                totalCodingTime: user.totalCodingTime,
+                currentStreak: user.currentStreak,
+            },
+        });
     } catch (error) {
         console.error("Error linking user:", error);
         return res.status(500).json({ message: "Error linking user" });
@@ -582,14 +621,6 @@ function authenticateApiKey(req, res, next) {
     next();
 }
 
-// Apply API key authentication to protected routes only
-// Public routes: health checks, basic leaderboard
-// Protected routes: admin endpoints, session creation
-app.use("/admin", authenticateApiKey);
-app.use("/coding-session", authenticateApiKey);
-app.use("/snapshot", authenticateApiKey);
-app.use("/snapshots", authenticateApiKey);
-
 // Admin endpoint: Manual database cleanup
 app.post("/admin/cleanup", async (req, res) => {
     console.log("POST /admin/cleanup endpoint hit");
@@ -625,6 +656,20 @@ app.get("/admin/stats", async (req, res) => {
             error: error.message,
         });
     }
+});
+
+// Apply API key authentication to all endpoints except Leaderboard and root
+app.use((req, res, next) => {
+    if (
+        req.method === "POST" ||
+        req.method === "PUT" ||
+        req.method === "DELETE" ||
+        (req.method === "GET" &&
+            !(req.path.startsWith("/leaderboard") || req.path === "/"))
+    ) {
+        return authenticateApiKey(req, res, next);
+    }
+    next();
 });
 
 app.listen(PORT, () => {
