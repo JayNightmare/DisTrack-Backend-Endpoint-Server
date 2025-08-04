@@ -16,28 +16,6 @@ const axios = require("axios");
 
 app.use(express.json());
 
-// CORS Configuration - Enhanced for better compatibility
-const corsOptions = {
-    origin:
-        process.env.NODE_ENV === "production"
-            ? ["https://distrack.endpoint-system.uk"] // Replace with your actual frontend domain
-            : "*", // Allow all origins in development
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    allowedHeaders: [
-        "Origin",
-        "X-Requested-With",
-        "Content-Type",
-        "Accept",
-        "Authorization",
-        "Cache-Control",
-    ],
-    credentials: false,
-    maxAge: 86400, // 24 hours
-    optionsSuccessStatus: 200, // For legacy browser support
-};
-
-app.use(cors(corsOptions));
-
 // * Enhanced Middleware for API key authentication with geo-location tracking
 async function authenticateApiKey(req, res, next) {
     const authHeader = req.headers["authorization"];
