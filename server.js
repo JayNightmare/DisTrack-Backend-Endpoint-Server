@@ -12,23 +12,105 @@ const MonitoringService = require("./MonitoringService.js");
 const DataRetentionService = require("./DataRetentionService.js");
 const { API_KEY } = require("./config.js");
 const cors = require("cors");
+const axios = require("axios");
 
 app.use(express.json());
 
-// * Middleware for API key authentication
-function authenticateApiKey(req, res, next) {
+// CORS Configuration - Enhanced for better compatibility
+const corsOptions = {
+    origin: process.env.NODE_ENV === 'production' 
+        ? ["https://your-frontend-domain.com"] // Replace with your actual frontend domain
+        : "*", // Allow all origins in development
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allowedHeaders: [
+        "Origin",
+        "X-Requested-With",
+        "Content-Type",
+        "Accept",
+        "Authorization",
+        "Cache-Control",
+    ],
+    credentials: false,
+    maxAge: 86400, // 24 hours
+    optionsSuccessStatus: 200 // For legacy browser support
+};
+
+app.use(cors(corsOptions));
+
+// * Enhanced Middleware for API key authentication with geo-location tracking
+async function authenticateApiKey(req, res, next) {
     const authHeader = req.headers["authorization"];
     const token = authHeader?.startsWith("Bearer ")
         ? authHeader.split(" ")[1]
         : authHeader;
 
-    console.log("Auth check - Expected:", API_KEY?.substring(0, 10) + "...");
-    console.log("Auth check - Received:", token?.substring(0, 10) + "...");
+    // Get client IP address (considering proxies)
+    const getClientIP = (req) => {
+        return req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+               req.headers['x-real-ip'] ||
+               req.connection?.remoteAddress ||
+               req.socket?.remoteAddress ||
+               req.ip ||
+               'unknown';
+    };
+
+    const clientIP = getClientIP(req);
+    
+    console.log("🔐 Auth check initiated...");
+    console.log("Expected:", API_KEY?.substring(0, 10) + "...");
+    console.log("Received:", token?.substring(0, 10) + "...");
+    console.log("📍 Client IP:", clientIP);
 
     if (!token || token !== API_KEY) {
-        console.log("Authentication failed for:", req.method, req.path);
-        return res.status(403).json({ message: "Forbidden: Invalid API Key" });
+        console.log("❌ Authentication FAILED! 🚫");
+        console.log("🎭 Someone's trying to be sneaky... but we caught them! 😏");
+        console.log("🔍 Investigating this suspicious character...");
+        console.log("🌐 Path attempted:", req.method, req.path);
+        console.log("🖥️  User-Agent:", req.headers['user-agent'] || 'Unknown');
+        
+        // Perform geo-location lookup if IP is valid
+        if (clientIP && clientIP !== 'unknown' && !clientIP.startsWith('::')) {
+            try {
+                console.log("🌍 Performing geo-location lookup... 🔍");
+                const geoResponse = await axios.get(`http://ip-api.com/json/${clientIP}`, {
+                    timeout: 3000 // 3 second timeout
+                });
+                
+                if (geoResponse.data && geoResponse.data.status === 'success') {
+                    const { city, region, country, isp, org } = geoResponse.data;
+                    console.log("🏙️  Location detected:");
+                    console.log(`   📍 City: ${city || 'Unknown'}`);
+                    console.log(`   🏛️  Region: ${region || 'Unknown'}`);
+                    console.log(`   🌍 Country: ${country || 'Unknown'}`);
+                    console.log(`   🌐 ISP: ${isp || 'Unknown'}`);
+                    console.log(`   🏢 Organization: ${org || 'Unknown'}`);
+                    console.log("🕵️  Well, well, well... look who we have here! 👀");
+                    console.log(`🎪 A visitor from ${city}, ${country} using ${isp}!`);
+                    console.log("🤡 Nice try, but you'll need the magic words! ✨");
+                } else {
+                    console.log("🤷 Geo-location lookup returned no data. Mysterious visitor! 👻");
+                }
+            } catch (geoError) {
+                console.log("🚫 Geo-location lookup failed:", geoError.message);
+                console.log("🔮 This visitor remains a mystery... spooky! 👻");
+            }
+        } else {
+            console.log("🤖 Local or invalid IP detected. Probably a bot or local testing! 🧪");
+        }
+
+        console.log("🛡️  Access DENIED! Back to the shadows with you! 😈");
+        console.log("💡 Hint: You need a valid API key, not fairy dust! ✨");
+        
+        return res.status(403).json({ 
+            message: "Forbidden: Invalid API Key",
+            hint: "🔑 You need the secret sauce! 🌶️"
+        });
     }
+
+    // Success case
+    console.log("✅ Authentication SUCCESS! 🎉");
+    console.log("🎊 Welcome back, authorized user! You have the magic touch! ✨");
+    console.log("🚀 Request approved for:", req.method, req.path);
     next();
 }
 
