@@ -114,7 +114,6 @@ async function authenticateApiKey(req, res, next) {
     next();
 }
 
-// Apply API key authentication BEFORE routes (move this here!)
 app.use((req, res, next) => {
     // Public endpoints that don't require authentication
     const publicEndpoints = ["/", "/health"];
