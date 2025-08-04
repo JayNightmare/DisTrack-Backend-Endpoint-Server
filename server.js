@@ -11,10 +11,17 @@ const CronScheduler = require("./CronScheduler.js");
 const MonitoringService = require("./MonitoringService.js");
 const DataRetentionService = require("./DataRetentionService.js");
 const { API_KEY } = require("./config.js");
-const cors = require("cors");
 const axios = require("axios");
 
 app.use(express.json());
+
+app.use((req, res, next) => {
+    if (req.method === "OPTIONS") {
+        console.log("🚦 Preflight request bypassed auth");
+        return res.status(204).end();
+    }
+    next();
+});
 
 // * Enhanced Middleware for API key authentication with geo-location tracking
 async function authenticateApiKey(req, res, next) {
