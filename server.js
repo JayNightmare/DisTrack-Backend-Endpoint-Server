@@ -127,7 +127,7 @@ async function authenticateApiKey(req, res, next) {
 
 app.use((req, res, next) => {
     // Public endpoints that don't require authentication
-    const publicEndpoints = ["/", "/health"];
+    const publicEndpoints = ["/", "/health", "/auth/discord/callback"];
 
     const isPublicLeaderboard =
         req.path.startsWith("/leaderboard") && req.method === "GET";
