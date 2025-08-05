@@ -1000,7 +1000,7 @@ app.get(
         console.log("Discord OAuth success:", req.user);
 
         // Redirect with JWT token as query parameter
-        const redirectUrl = `https://distrack.endpoint-system.uk/dashboard?token=${
+        const redirectUrl = `https://distrack.endpoint-system.uk/auth/distrack?token=${
             req.user.jwtToken
         }&user=${encodeURIComponent(JSON.stringify(req.user.userProfile))}`;
         res.redirect(redirectUrl);
