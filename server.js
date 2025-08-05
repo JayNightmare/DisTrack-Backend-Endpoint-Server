@@ -10,7 +10,11 @@ const SnapshotScheduler = require("./SnapshotScheduler.js");
 const CronScheduler = require("./CronScheduler.js");
 const MonitoringService = require("./MonitoringService.js");
 const DataRetentionService = require("./DataRetentionService.js");
-const { API_KEY } = require("./config.js");
+const {
+    API_KEY,
+    DISCORD_CLIENT_ID,
+    DISCORD_CLIENT_SECRET,
+} = require("./config.js");
 const axios = require("axios");
 
 app.use(express.json());
@@ -859,19 +863,273 @@ app.get("/admin/stats", async (req, res) => {
     }
 });
 
-// Apply API key authentication to all endpoints except Leaderboard and root
-// app.use((req, res, next) => {
-//     if (
-//         req.method === "POST" ||
-//         req.method === "PUT" ||
-//         req.method === "DELETE" ||
-//         (req.method === "GET" &&
-//             !(req.path.startsWith("/leaderboard") || req.path === "/"))
-//     ) {
-//         return authenticateApiKey(req, res, next);
-//     }
-//     next();
-// });
+// //
+
+// Discord OAuth integration
+
+// //
+
+// Discord OAuth Callback Handler
+app.post("/auth/discord/callback", async (req, res) => {
+    const { code, redirect_uri } = req.body;
+    console.log("POST /auth/discord/callback endpoint hit");
+
+    if (!code || !redirect_uri) {
+        return res.status(400).json({
+            message:
+                "Missing required fields: code and redirect_uri are required",
+        });
+    }
+
+    try {
+        // Exchange the code for an access token
+        const tokenResponse = await axios.post(
+            "https://discord.com/api/oauth2/token",
+            new URLSearchParams({
+                client_id: DISCORD_CLIENT_ID,
+                client_secret: DISCORD_CLIENT_SECRET,
+                grant_type: "authorization_code",
+                code: code,
+                redirect_uri: redirect_uri,
+            }),
+            {
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded",
+                },
+            }
+        );
+
+        const { access_token, token_type } = tokenResponse.data;
+
+        // Get user info from Discord
+        const userResponse = await axios.get(
+            "https://discord.com/api/users/@me",
+            {
+                headers: {
+                    Authorization: `${token_type} ${access_token}`,
+                },
+            }
+        );
+
+        const discordUser = userResponse.data;
+
+        // Check if user exists in our database
+        let user = await User.findOne({ discordId: discordUser.id });
+
+        if (!user) {
+            // Create new user if they don't exist
+            user = new User({
+                userId: discordUser.id, // Use Discord ID as userId
+                discordId: discordUser.id,
+                username: discordUser.username,
+                displayName: discordUser.global_name || discordUser.username,
+                avatarUrl: discordUser.avatar
+                    ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png`
+                    : null,
+                linkedAt: new Date(),
+                lastLinkedAt: new Date(),
+            });
+            await user.save();
+            console.log(
+                `New user created: ${discordUser.username} (${discordUser.id})`
+            );
+        } else {
+            // Update existing user info
+            user.username = discordUser.username;
+            user.displayName = discordUser.global_name || discordUser.username;
+            user.avatarUrl = discordUser.avatar
+                ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png`
+                : null;
+            user.lastLinkedAt = new Date();
+            await user.save();
+            console.log(
+                `Existing user updated: ${discordUser.username} (${discordUser.id})`
+            );
+        }
+
+        res.status(200).json({
+            access_token: access_token,
+            user: {
+                id: discordUser.id,
+                username: discordUser.username,
+                global_name: discordUser.global_name,
+                avatar: discordUser.avatar,
+                email: discordUser.email,
+                verified: discordUser.verified,
+            },
+            userProfile: {
+                userId: user.userId,
+                username: user.username,
+                displayName: user.displayName,
+                avatarUrl: user.avatarUrl,
+                totalCodingTime: user.totalCodingTime,
+                currentStreak: user.currentStreak,
+                longestStreak: user.longestStreak,
+            },
+        });
+
+        console.log(
+            `Discord OAuth successful for user: ${discordUser.username}`
+        );
+    } catch (error) {
+        console.error(
+            "Discord OAuth error:",
+            error.response?.data || error.message
+        );
+        return res.status(500).json({
+            message: "Discord OAuth authentication failed",
+            error: error.response?.data || error.message,
+        });
+    }
+});
+
+// Check if user exists by Discord ID
+app.get("/auth/discord/user/:discordId", async (req, res) => {
+    const { discordId } = req.params;
+    console.log(`GET /auth/discord/user/${discordId} endpoint hit`);
+
+    try {
+        const user = await User.findOne({ discordId });
+
+        if (!user) {
+            return res.status(404).json({
+                exists: false,
+                message: "User not found",
+            });
+        }
+
+        res.status(200).json({
+            exists: true,
+            user: {
+                userId: user.userId,
+                username: user.username,
+                displayName: user.displayName,
+                avatarUrl: user.avatarUrl,
+                discordId: user.discordId,
+                totalCodingTime: user.totalCodingTime,
+                currentStreak: user.currentStreak,
+                longestStreak: user.longestStreak,
+                linkedAt: user.linkedAt,
+                lastLinkedAt: user.lastLinkedAt,
+            },
+        });
+
+        console.log(
+            `User exists check successful for Discord ID: ${discordId}`
+        );
+    } catch (error) {
+        console.error("Error checking user existence:", error);
+        return res.status(500).json({
+            message: "Error checking user existence",
+            error: error.message,
+        });
+    }
+});
+
+// Create new user with Discord data
+app.post("/auth/discord/user", async (req, res) => {
+    const { discordId, username, displayName, avatarUrl, email } = req.body;
+    console.log("POST /auth/discord/user endpoint hit");
+
+    if (!discordId || !username) {
+        return res.status(400).json({
+            message:
+                "Missing required fields: discordId and username are required",
+        });
+    }
+
+    try {
+        // Check if user already exists
+        let existingUser = await User.findOne({ discordId });
+
+        if (existingUser) {
+            return res.status(409).json({
+                message: "User already exists",
+                user: {
+                    userId: existingUser.userId,
+                    username: existingUser.username,
+                    displayName: existingUser.displayName,
+                    avatarUrl: existingUser.avatarUrl,
+                    discordId: existingUser.discordId,
+                    totalCodingTime: existingUser.totalCodingTime,
+                    currentStreak: existingUser.currentStreak,
+                    longestStreak: existingUser.longestStreak,
+                },
+            });
+        }
+
+        // Create new user
+        const newUser = new User({
+            userId: discordId, // Use Discord ID as userId
+            discordId: discordId,
+            username: username,
+            displayName: displayName || username,
+            avatarUrl: avatarUrl || null,
+            email: email || null,
+            linkedAt: new Date(),
+            lastLinkedAt: new Date(),
+        });
+
+        await newUser.save();
+
+        res.status(201).json({
+            message: "User created successfully",
+            user: {
+                userId: newUser.userId,
+                username: newUser.username,
+                displayName: newUser.displayName,
+                avatarUrl: newUser.avatarUrl,
+                discordId: newUser.discordId,
+                totalCodingTime: newUser.totalCodingTime,
+                currentStreak: newUser.currentStreak,
+                longestStreak: newUser.longestStreak,
+                linkedAt: newUser.linkedAt,
+                lastLinkedAt: newUser.lastLinkedAt,
+            },
+        });
+
+        console.log(`New Discord user created: ${username} (${discordId})`);
+    } catch (error) {
+        console.error("Error creating Discord user:", error);
+        return res.status(500).json({
+            message: "Error creating Discord user",
+            error: error.message,
+        });
+    }
+});
+
+// Get Discord OAuth URL (helper endpoint)
+app.get("/auth/discord/url", (req, res) => {
+    const { redirect_uri } = req.query;
+    console.log("GET /auth/discord/url endpoint hit");
+
+    if (!redirect_uri) {
+        return res.status(400).json({
+            message: "Missing required parameter: redirect_uri",
+        });
+    }
+
+    const clientId = DISCORD_CLIENT_ID;
+
+    if (!clientId) {
+        return res.status(500).json({
+            message: "Discord client ID not configured",
+        });
+    }
+
+    const scopes = ["identify", "email"];
+    const authUrl = `https://discord.com/api/oauth2/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(
+        redirect_uri
+    )}&response_type=code&scope=${scopes.join("%20")}`;
+
+    res.status(200).json({
+        authUrl: authUrl,
+        clientId: clientId,
+        scopes: scopes,
+    });
+
+    console.log("Discord OAuth URL generated successfully");
+});
 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);

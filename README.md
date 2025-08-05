@@ -10,22 +10,30 @@
 This is the backend server for the DisTrack Discord bot and VSCode extension integration. It handles and stores coding session data from the VSCode extension and provides an API for the Discord bot to retrieve and display this data.
 
 ## Table of Contents
-- [DisTrack Endpoint Server](#distrack-endpoint-server)
-  - [Table of Contents](#table-of-contents)
-  - [Overview](#overview)
-  - [Features](#features)
-  - [Installation](#installation)
-  - [Configuration](#configuration)
-  - [API Endpoints](#api-endpoints)
-    - [POST `/coding-session`](#post-coding-session)
-    - [POST `/link`](#post-link)
-  - [Data Management](#data-management)
-    - [Automated Cleanup](#automated-cleanup)
-    - [Data Retention Policies](#data-retention-policies)
-    - [Manual Cleanup](#manual-cleanup)
-  - [Usage](#usage)
-  - [Contributing](#contributing)
-  - [License](#license)
+- [Table of Contents](#table-of-contents)
+- [Overview](#overview)
+- [Features](#features)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [API Endpoints](#api-endpoints)
+  - [Core Endpoints](#core-endpoints)
+  - [POST `/coding-session`](#post-coding-session)
+  - [POST `/link`](#post-link)
+  - [Leaderboard Endpoints](#leaderboard-endpoints)
+  - [GET `/leaderboard/:timeframe`](#get-leaderboardtimeframe)
+  - [POST `/snapshot/:timeframe`](#post-snapshottimeframe)
+  - [GET `/user/:userId/history/:timeframe`](#get-useruseridhistorytimeframe)
+- [Usage](#usage)
+- [Data Management](#data-management)
+  - [Automated Cleanup](#automated-cleanup)
+  - [Data Retention Policies](#data-retention-policies)
+  - [Manual Cleanup](#manual-cleanup)
+    - [Trigger Cleanup via API:](#trigger-cleanup-via-api)
+    - [Trigger Cleanup via Code:](#trigger-cleanup-via-code)
+    - [What Happens During Cleanup:](#what-happens-during-cleanup)
+    - [Benefits:](#benefits)
+- [Contributing](#contributing)
+- [License](#license)
 
 ## Overview
 
@@ -50,7 +58,7 @@ The DisTrack Endpoint Server collects coding session data from the DisTrack VSCo
 
 1. **Clone the Repository**:
    ```bash
-   git clone https://github.com/yourusername/DisTrack-Endpoint.git
+   git clone https://github.com/JayNightmare/DisTrack-Endpoint-Server.git
    ```
 2. **Install Dependencies**:
    ```bash
