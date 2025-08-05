@@ -14,10 +14,124 @@ const {
     API_KEY,
     DISCORD_CLIENT_ID,
     DISCORD_CLIENT_SECRET,
+    DISCORD_CALLBACK_URL,
+    JWT_SECRET,
+    SESSION_SECRET,
 } = require("./config.js");
 const axios = require("axios");
+const passport = require("passport");
+const DiscordStrategy = require("passport-discord").Strategy;
+const session = require("express-session");
+const jwt = require("jsonwebtoken");
 
 app.use(express.json());
+
+// * Session Configuration
+app.use(
+    session({
+        secret: SESSION_SECRET,
+        resave: false,
+        saveUninitialized: false,
+        cookie: {
+            secure: false, // Set to true in production with HTTPS
+            maxAge: 24 * 60 * 60 * 1000, // 24 hours
+        },
+    })
+);
+
+// * Passport Configuration
+passport.use(
+    new DiscordStrategy(
+        {
+            clientID: DISCORD_CLIENT_ID,
+            clientSecret: DISCORD_CLIENT_SECRET,
+            callbackURL: DISCORD_CALLBACK_URL,
+            scope: ["identify", "email"],
+        },
+        async (accessToken, refreshToken, profile, done) => {
+            try {
+                console.log("Discord OAuth Profile:", profile);
+
+                // Check if user exists in our database
+                let user = await User.findOne({ discordId: profile.id });
+
+                if (!user) {
+                    // Create new user if they don't exist
+                    user = new User({
+                        userId: profile.id, // Use Discord ID as userId
+                        discordId: profile.id,
+                        username: profile.username,
+                        displayName: profile.global_name || profile.username,
+                        avatarUrl: profile.avatar
+                            ? `https://cdn.discordapp.com/avatars/${profile.id}/${profile.avatar}.png`
+                            : null,
+                        email: profile.email,
+                        linkedAt: new Date(),
+                        lastLinkedAt: new Date(),
+                    });
+                    await user.save();
+                    console.log(
+                        `New user created: ${profile.username} (${profile.id})`
+                    );
+                } else {
+                    // Update existing user info
+                    user.username = profile.username;
+                    user.displayName = profile.global_name || profile.username;
+                    user.avatarUrl = profile.avatar
+                        ? `https://cdn.discordapp.com/avatars/${profile.id}/${profile.avatar}.png`
+                        : null;
+                    user.email = profile.email;
+                    user.lastLinkedAt = new Date();
+                    await user.save();
+                    console.log(
+                        `Existing user updated: ${profile.username} (${profile.id})`
+                    );
+                }
+
+                // Generate JWT token
+                const token = jwt.sign(
+                    {
+                        userId: user.userId,
+                        discordId: user.discordId,
+                        username: user.username,
+                    },
+                    JWT_SECRET,
+                    { expiresIn: "7d" }
+                );
+
+                // Create user data object
+                const userData = {
+                    id: profile.id,
+                    username: profile.username,
+                    avatar: profile.avatar,
+                    email: profile.email,
+                    access_token: accessToken,
+                    jwtToken: token,
+                    userProfile: {
+                        userId: user.userId,
+                        username: user.username,
+                        displayName: user.displayName,
+                        avatarUrl: user.avatarUrl,
+                        totalCodingTime: user.totalCodingTime,
+                        currentStreak: user.currentStreak,
+                        longestStreak: user.longestStreak,
+                    },
+                };
+
+                return done(null, userData);
+            } catch (error) {
+                console.error("Error in Discord strategy:", error);
+                return done(error, null);
+            }
+        }
+    )
+);
+
+passport.serializeUser((user, done) => done(null, user));
+passport.deserializeUser((obj, done) => done(null, obj));
+
+app.use(passport.initialize());
+app.use(passport.session());
 
 app.use((req, res, next) => {
     if (req.method === "OPTIONS") {
@@ -868,105 +982,96 @@ app.get("/admin/stats", async (req, res) => {
 
 // //
 
-// Discord OAuth integration
+// Discord OAuth integration with Passport.js
 
 // //
 
-// Discord OAuth Callback Handler
-app.get("/auth/discord/callback", async (req, res) => {
-    const { code, state } = req.query;
-    console.log("GET /auth/discord/callback endpoint hit");
-    console.log("Query params:", req.query);
+// * Route: Initiate Discord Login
+app.get("/auth/discord", passport.authenticate("discord"));
 
-    if (!code) {
-        return res.status(400).json({
-            message: "Missing required field: code is required",
+// * Route: Discord OAuth Callback
+app.get(
+    "/auth/discord/callback",
+    passport.authenticate("discord", {
+        failureRedirect: "https://distrack.endpoint-system.uk/login",
+    }),
+    (req, res) => {
+        // Successful authentication
+        console.log("Discord OAuth success:", req.user);
+
+        // Redirect with JWT token as query parameter
+        const redirectUrl = `https://distrack.endpoint-system.uk/dashboard?token=${
+            req.user.jwtToken
+        }&user=${encodeURIComponent(JSON.stringify(req.user.userProfile))}`;
+        res.redirect(redirectUrl);
+    }
+);
+
+// * Route: Get current authenticated user
+app.get("/auth/user", (req, res) => {
+    if (req.isAuthenticated()) {
+        res.status(200).json({
+            authenticated: true,
+            user: req.user,
+        });
+    } else {
+        res.status(401).json({
+            authenticated: false,
+            message: "Not authenticated",
+        });
+    }
+});
+
+// * Route: Logout
+app.get("/auth/logout", (req, res, next) => {
+    req.logout((err) => {
+        if (err) {
+            return next(err);
+        }
+        res.status(200).json({
+            message: "Logged out successfully",
+        });
+    });
+});
+
+// * JWT Token Verification Middleware
+function verifyJWT(req, res, next) {
+    const authHeader = req.headers["authorization"];
+    const token = authHeader?.startsWith("Bearer ")
+        ? authHeader.split(" ")[1]
+        : authHeader;
+
+    if (!token) {
+        return res.status(401).json({
+            message: "Access token required",
         });
     }
 
-    // Use the redirect_uri that was used in the initial OAuth request
-    // This should match what you used when generating the OAuth URL
-    const redirect_uri = `${req.protocol}://${req.get(
-        "host"
-    )}/auth/discord/callback`;
-
     try {
-        // Exchange the code for an access token
-        const tokenResponse = await axios.post(
-            "https://discord.com/api/oauth2/token",
-            new URLSearchParams({
-                client_id: DISCORD_CLIENT_ID,
-                client_secret: DISCORD_CLIENT_SECRET,
-                grant_type: "authorization_code",
-                code: code,
-                redirect_uri: redirect_uri,
-            }),
-            {
-                headers: {
-                    "Content-Type": "application/x-www-form-urlencoded",
-                },
-            }
-        );
+        const decoded = jwt.verify(token, JWT_SECRET);
+        req.jwtUser = decoded;
+        next();
+    } catch (error) {
+        return res.status(403).json({
+            message: "Invalid or expired token",
+        });
+    }
+}
 
-        const { access_token, token_type } = tokenResponse.data;
-
-        // Get user info from Discord
-        const userResponse = await axios.get(
-            "https://discord.com/api/users/@me",
-            {
-                headers: {
-                    Authorization: `${token_type} ${access_token}`,
-                },
-            }
-        );
-
-        const discordUser = userResponse.data;
-
-        // Check if user exists in our database
-        let user = await User.findOne({ discordId: discordUser.id });
-
+// * Route: Verify JWT Token
+app.post("/auth/verify-token", verifyJWT, async (req, res) => {
+    try {
+        // Get fresh user data
+        const user = await User.findOne({ userId: req.jwtUser.userId });
         if (!user) {
-            // Create new user if they don't exist
-            user = new User({
-                userId: discordUser.id, // Use Discord ID as userId
-                discordId: discordUser.id,
-                username: discordUser.username,
-                displayName: discordUser.global_name || discordUser.username,
-                avatarUrl: discordUser.avatar
-                    ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png`
-                    : null,
-                linkedAt: new Date(),
-                lastLinkedAt: new Date(),
+            return res.status(404).json({
+                message: "User not found",
             });
-            await user.save();
-            console.log(
-                `New user created: ${discordUser.username} (${discordUser.id})`
-            );
-        } else {
-            // Update existing user info
-            user.username = discordUser.username;
-            user.displayName = discordUser.global_name || discordUser.username;
-            user.avatarUrl = discordUser.avatar
-                ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png`
-                : null;
-            user.lastLinkedAt = new Date();
-            await user.save();
-            console.log(
-                `Existing user updated: ${discordUser.username} (${discordUser.id})`
-            );
         }
 
         res.status(200).json({
-            access_token: access_token,
+            valid: true,
             user: {
-                id: discordUser.id,
-                username: discordUser.username,
-                global_name: discordUser.global_name,
-                avatar: discordUser.avatar,
-                email: discordUser.email,
-                verified: discordUser.verified,
-            },
-            userProfile: {
                 userId: user.userId,
                 username: user.username,
                 displayName: user.displayName,
@@ -976,26 +1081,21 @@ app.get("/auth/discord/callback", async (req, res) => {
                 longestStreak: user.longestStreak,
             },
         });
-
-        console.log(
-            `Discord OAuth successful for user: ${discordUser.username}`
-        );
     } catch (error) {
-        console.error(
-            "Discord OAuth error:",
-            error.response?.data || error.message
-        );
-        return res.status(500).json({
-            message: "Discord OAuth authentication failed",
-            error: error.response?.data || error.message,
+        console.error("Error verifying token:", error);
+        res.status(500).json({
+            message: "Error verifying token",
+            error: error.message,
         });
     }
 });
 
-// Discord OAuth Callback Handler (POST version for API usage)
+// Legacy API endpoints (keeping for backward compatibility)
+
+// Discord OAuth Callback Handler (Legacy - for API usage)
 app.post("/auth/discord/callback", async (req, res) => {
     const { code, redirect_uri } = req.body;
-    console.log("POST /auth/discord/callback endpoint hit");
+    console.log("POST /auth/discord/callback endpoint hit (Legacy)");
 
     if (!code || !redirect_uri) {
         return res.status(400).json({
@@ -1042,7 +1142,7 @@ app.post("/auth/discord/callback", async (req, res) => {
         if (!user) {
             // Create new user if they don't exist
             user = new User({
-                userId: discordUser.id, // Use Discord ID as userId
+                userId: discordUser.id,
                 discordId: discordUser.id,
                 username: discordUser.username,
                 displayName: discordUser.global_name || discordUser.username,
@@ -1070,8 +1170,20 @@ app.post("/auth/discord/callback", async (req, res) => {
             );
         }
 
+        // Generate JWT token
+        const jwtToken = jwt.sign(
+            {
+                userId: user.userId,
+                discordId: user.discordId,
+                username: user.username,
+            },
+            JWT_SECRET,
+            { expiresIn: "7d" }
+        );
+
         res.status(200).json({
             access_token: access_token,
+            jwt_token: jwtToken,
             user: {
                 id: discordUser.id,
                 username: discordUser.username,
