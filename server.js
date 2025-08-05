@@ -53,7 +53,7 @@ passport.use(
                 console.log("Discord OAuth Profile:", profile);
 
                 // Check if user exists in our database
-                let user = await User.findOne({ discordId: profile.id });
+                let user = await User.findOne({ userId: profile.id });
 
                 if (!user) {
                     // Create new user if they don't exist
