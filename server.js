@@ -10,6 +10,11 @@ const SnapshotScheduler = require("./SnapshotScheduler.js");
 const CronScheduler = require("./CronScheduler.js");
 const MonitoringService = require("./MonitoringService.js");
 const DataRetentionService = require("./DataRetentionService.js");
+const axios = require("axios");
+const passport = require("passport");
+const DiscordStrategy = require("passport-discord").Strategy;
+const session = require("express-session");
+const jwt = require("jsonwebtoken");
 const {
     API_KEY,
     DISCORD_CLIENT_ID,
@@ -18,11 +23,6 @@ const {
     JWT_SECRET,
     SESSION_SECRET,
 } = require("./config.js");
-const axios = require("axios");
-const passport = require("passport");
-const DiscordStrategy = require("passport-discord").Strategy;
-const session = require("express-session");
-const jwt = require("jsonwebtoken");
 
 app.use(express.json());
 
