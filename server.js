@@ -1137,7 +1137,7 @@ app.post("/auth/discord/callback", async (req, res) => {
         const discordUser = userResponse.data;
 
         // Check if user exists in our database
-        let user = await User.findOne({ discordId: discordUser.id });
+        let user = await User.findOne({ userId: discordUser.id });
 
         if (!user) {
             // Create new user if they don't exist
@@ -1224,7 +1224,7 @@ app.get("/auth/discord/user/:discordId", async (req, res) => {
     console.log(`GET /auth/discord/user/${discordId} endpoint hit`);
 
     try {
-        const user = await User.findOne({ discordId });
+        const user = await User.findOne({ userId: discordId });
 
         if (!user) {
             return res.status(404).json({
@@ -1275,7 +1275,7 @@ app.post("/auth/discord/user", async (req, res) => {
 
     try {
         // Check if user already exists
-        let existingUser = await User.findOne({ discordId });
+        let existingUser = await User.findOne({ userId: discordId });
 
         if (existingUser) {
             return res.status(409).json({
