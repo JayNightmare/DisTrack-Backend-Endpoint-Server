@@ -245,13 +245,23 @@ app.use((req, res, next) => {
 
     const isPublicLeaderboard =
         req.path.startsWith("/leaderboard") && req.method === "GET";
+
     const isDiscordOAuth =
         req.path.startsWith("/auth/discord") &&
         (req.method === "GET" || req.method === "POST");
+
+    const isPublicBotSharable =
+        req.path.startsWith("/user") && req.method === "GET";
+
     const isPublicEndpoint =
         publicEndpoints.includes(req.path) && req.method === "GET";
 
-    if (isPublicEndpoint || isPublicLeaderboard || isDiscordOAuth) {
+    if (
+        isPublicEndpoint ||
+        isPublicLeaderboard ||
+        isDiscordOAuth ||
+        isPublicBotSharable
+    ) {
         console.log("Public endpoint accessed:", req.method, req.path);
         return next();
     }
