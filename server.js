@@ -583,7 +583,7 @@ app.put("/user-profile/:userId", async (req, res) => {
 });
 
 // * Get user by user id and check the User-Agent header for bots/crawlers (Discord, Twitter, Facebook, etc.)
-app.get("/user/:userId", async (req, res) => {
+/* app.get("/user/:userId", async (req, res) => {
     const { userId } = req.params;
     const userAgent = req.headers["user-agent"] || "";
 
@@ -787,7 +787,7 @@ app.get("/user/:userId", async (req, res) => {
         console.error("Error fetching user:", error);
         return res.status(500).json({ message: "Error fetching user profile" });
     }
-});
+}); */
 
 // Get streak data for a user
 app.get("/streak/:userId", async (req, res) => {
