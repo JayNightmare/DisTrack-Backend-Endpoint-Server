@@ -22,6 +22,12 @@ const {
     DISCORD_CALLBACK_URL,
     JWT_SECRET,
     SESSION_SECRET,
+    LINK_CODE_LENGTH,
+    LINK_CODE_RATE_LIMIT_WINDOW_MS,
+    LINK_CODE_RATE_LIMIT_MAX,
+    EXTENSION_LINK_MAX_FAILURES,
+    EXTENSION_LINK_FAILURE_WINDOW_MS,
+    EXTENSION_LINK_LOCKOUT_MS,
 } = require("./config.js");
 
 app.use(express.json());
@@ -582,213 +588,6 @@ app.put("/user-profile/:userId", async (req, res) => {
     }
 });
 
-// * Get user by user id and check the User-Agent header for bots/crawlers (Discord, Twitter, Facebook, etc.)
-/* app.get("/user/:userId", async (req, res) => {
-    const { userId } = req.params;
-    const userAgent = req.headers["user-agent"] || "";
-
-    console.log(`GET /user/${userId} endpoint hit`);
-    console.log(`User-Agent: ${userAgent}`);
-
-    try {
-        // Fetch user data
-        const user = await User.findOne({ userId });
-        if (!user) {
-            return res.status(404).json({ message: "User not found" });
-        }
-
-        // Check if request is from a bot/crawler
-        const botPatterns = [
-            "Discordbot",
-            "Twitterbot",
-            "facebookexternalhit",
-            "LinkedInBot",
-            "WhatsApp",
-            "TelegramBot",
-            "SkypeUriPreview",
-            "GoogleBot",
-            "bingbot",
-            "YandexBot",
-            "slackbot",
-        ];
-
-        const isBot = botPatterns.some((pattern) =>
-            userAgent.toLowerCase().includes(pattern.toLowerCase())
-        );
-
-        if (isBot) {
-            // Return HTML with Open Graph and Twitter Card meta tags
-            const totalTimeFormatted = Math.floor(user.totalCodingTime / 3600);
-            const avatarUrl =
-                user.avatarUrl || "https://avatar.iran.liara.run/public";
-
-            const html = `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${user.displayName || user.username} - DisTrack Profile</title>
-    
-    <!-- Open Graph Meta Tags -->
-    <meta property="og:title" content="${
-        user.displayName || user.username
-    } - DisTrack Profile">
-    <meta property="og:description" content="🚀 ${totalTimeFormatted}h coded | 🔥 ${
-                user.currentStreak
-            } day streak | 📈 ${user.longestStreak} longest streak">
-    <meta property="og:image" content="${avatarUrl}">
-    <meta property="og:url" content="https://distrack.endpoint-system.uk/user/${userId}">
-    <meta property="og:type" content="profile">
-    <meta property="og:site_name" content="DisTrack">
-    
-    <!-- Twitter Card Meta Tags -->
-    <meta name="twitter:card" content="summary">
-    <meta name="twitter:title" content="${
-        user.displayName || user.username
-    } - DisTrack Profile">
-    <meta name="twitter:description" content="🚀 ${totalTimeFormatted}h coded | 🔥 ${
-                user.currentStreak
-            } day streak | 📈 ${user.longestStreak} longest streak">
-    <meta name="twitter:image" content="${avatarUrl}">
-    
-    <!-- Additional Meta Tags -->
-    <meta name="description" content="${
-        user.displayName || user.username
-    }'s coding statistics on DisTrack">
-    <meta name="author" content="DisTrack">
-    
-    <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            text-align: center;
-            padding: 2rem;
-            margin: 0;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-        }
-        .profile-card {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            padding: 2rem;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-            max-width: 400px;
-            width: 100%;
-        }
-        .avatar {
-            width: 100px;
-            height: 100px;
-            border-radius: 50%;
-            margin: 0 auto 1rem;
-            border: 4px solid rgba(255, 255, 255, 0.3);
-        }
-        .stats {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1rem;
-            margin-top: 1.5rem;
-        }
-        .stat {
-            background: rgba(255, 255, 255, 0.1);
-            padding: 1rem;
-            border-radius: 10px;
-        }
-        .stat-value {
-            font-size: 1.5rem;
-            font-weight: bold;
-            margin-bottom: 0.5rem;
-        }
-        .stat-label {
-            font-size: 0.9rem;
-            opacity: 0.8;
-        }
-    </style>
-</head>
-<body>
-    <div class="profile-card">
-        <img src="${avatarUrl}" alt="${
-                user.displayName || user.username
-            }" class="avatar" onerror="this.src='https://distrack.endpoint-system.uk/default-avatar.png'">
-        <h1>${user.displayName || user.username}</h1>
-        <p>@${user.username}</p>
-        
-        <div class="stats">
-            <div class="stat">
-                <div class="stat-value">${totalTimeFormatted}h</div>
-                <div class="stat-label">Total Coded</div>
-            </div>
-            <div class="stat">
-                <div class="stat-value">${user.currentStreak}</div>
-                <div class="stat-label">Current Streak</div>
-            </div>
-            <div class="stat">
-                <div class="stat-value">${user.longestStreak}</div>
-                <div class="stat-label">Longest Streak</div>
-            </div>
-            <div class="stat">
-                <div class="stat-value">${
-                    Object.keys(user.languages).length
-                }</div>
-                <div class="stat-label">Languages</div>
-            </div>
-        </div>
-    </div>
-    
-    <script>
-        // Redirect to full app after a delay for human visitors
-        setTimeout(() => {
-            if (navigator.userAgent.indexOf('bot') === -1) {
-                window.location.href = 'https://distrack.endpoint-system.uk/user/${userId}';
-            }
-        }, 3000);
-    </script>
-</body>
-</html>`;
-
-            console.log(
-                `Bot/crawler detected: ${userAgent.substring(0, 50)}...`
-            );
-            return res.setHeader("Content-Type", "text/html").send(html);
-        }
-
-        // Return JSON for regular requests
-        const userProfile = {
-            userId: user.userId,
-            username: user.username,
-            displayName: user.displayName,
-            avatarUrl: user.avatarUrl,
-            discordId: user.discordId,
-            totalCodingTime: user.totalCodingTime,
-            currentStreak: user.currentStreak,
-            longestStreak: user.longestStreak,
-            lastSessionDate: user.lastSessionDate,
-            languages: user.languages,
-            isPublic: user.isPublic,
-            timezone: user.timezone,
-            bio: user.bio,
-            socials: user.socials || {},
-            linkedAt: user.linkedAt,
-            lastLinkedAt: user.lastLinkedAt,
-            createdAt: user.createdAt,
-            updatedAt: user.updatedAt,
-        };
-
-        res.status(200).json(userProfile);
-        console.log(
-            `User profile for ${userId} retrieved successfully (JSON response)`
-        );
-    } catch (error) {
-        console.error("Error fetching user:", error);
-        return res.status(500).json({ message: "Error fetching user profile" });
-    }
-}); */
-
 // Get streak data for a user
 app.get("/streak/:userId", async (req, res) => {
     const { userId } = req.params;
@@ -1308,7 +1107,227 @@ app.post("/auth/verify-token", verifyJWT, async (req, res) => {
     }
 });
 
-// Legacy API endpoints (keeping for backward compatibility)
+// ---------------- Link Code & Extension Endpoints ---------------- //
+
+// Helper to generate a 6-character alphanumeric code (uppercase letters & digits)
+function generateLinkCode() {
+    const length = LINK_CODE_LENGTH || 8;
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // exclude ambiguous chars
+    let code = "";
+    for (let i = 0; i < length; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
+}
+
+// In-memory rate limit trackers (can be replaced with Redis in production)
+const linkCodeRateLimits = new Map(); // key: userId, value: { count, windowStart }
+const linkCodeRateLimitsIP = new Map(); // key: ip, value: { count, windowStart }
+
+// Brute-force tracking for /extension/link per IP
+const extensionLinkFailures = new Map(); // key: ip, value: { failures: [], lockedUntil }
+
+function isRateLimited(map, key, limit, windowMs) {
+    const now = Date.now();
+    let entry = map.get(key);
+    if (!entry || now - entry.windowStart > windowMs) {
+        // reset window
+        entry = { count: 1, windowStart: now };
+        map.set(key, entry);
+        return false;
+    }
+    if (entry.count >= limit) return true;
+    entry.count += 1;
+    return false;
+}
+
+function recordExtensionFailure(ip) {
+    const now = Date.now();
+    let entry = extensionLinkFailures.get(ip);
+    if (!entry) {
+        entry = { failures: [now], lockedUntil: 0 };
+        extensionLinkFailures.set(ip, entry);
+        return entry;
+    }
+    // purge old failures
+    entry.failures = entry.failures.filter(
+        (t) => now - t <= EXTENSION_LINK_FAILURE_WINDOW_MS
+    );
+    entry.failures.push(now);
+    if (
+        entry.failures.length >= EXTENSION_LINK_MAX_FAILURES &&
+        now > entry.lockedUntil
+    ) {
+        entry.lockedUntil = now + EXTENSION_LINK_LOCKOUT_MS;
+    }
+    return entry;
+}
+
+function checkExtensionLock(ip) {
+    const now = Date.now();
+    const entry = extensionLinkFailures.get(ip);
+    if (entry && entry.lockedUntil > now) {
+        return entry.lockedUntil - now; // ms remaining
+    }
+    return 0;
+}
+
+// 1. POST /user/link-code - generate and store a new link code for authenticated user
+app.post("/user/link-code", verifyJWT, async (req, res) => {
+    try {
+        const user = await User.findOne({ userId: req.jwtUser.userId });
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        const clientIP =
+            req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
+            req.ip ||
+            "unknown";
+
+        // Rate limit by user
+        if (
+            isRateLimited(
+                linkCodeRateLimits,
+                user.userId,
+                LINK_CODE_RATE_LIMIT_MAX,
+                LINK_CODE_RATE_LIMIT_WINDOW_MS
+            )
+        ) {
+            return res.status(429).json({
+                message: "Rate limit exceeded for user",
+            });
+        }
+
+        // Rate limit by IP
+        if (
+            isRateLimited(
+                linkCodeRateLimitsIP,
+                clientIP,
+                LINK_CODE_RATE_LIMIT_MAX * 2,
+                LINK_CODE_RATE_LIMIT_WINDOW_MS
+            )
+        ) {
+            return res.status(429).json({
+                message: "Rate limit exceeded for IP",
+            });
+        }
+
+        // Generate unique-ish code (retry a few times to avoid collision)
+        let attempts = 0;
+        let code;
+        while (attempts < 5) {
+            code = generateLinkCode();
+            // We store hashed codes, so we hash candidate before lookup
+            const hashedCandidate = require("crypto")
+                .createHash("sha256")
+                .update(code)
+                .digest("hex");
+            const existing = await User.findOne({ linkCode: hashedCandidate });
+            if (!existing) break;
+            attempts++;
+        }
+        if (attempts === 5) {
+            return res
+                .status(500)
+                .json({ message: "Failed to generate unique link code" });
+        }
+
+        // Hash code before storing for security (prevent enumeration if DB leaked)
+        const hashed = require("crypto")
+            .createHash("sha256")
+            .update(code)
+            .digest("hex");
+        user.linkCode = hashed;
+        await user.save();
+        console.log(
+            `[AUDIT] Link code generated for user ${user.userId} from ${clientIP}`
+        );
+        res.status(200).json({ linkCode: code, length: code.length });
+    } catch (err) {
+        console.error("Error generating link code:", err);
+        res.status(500).json({ message: "Error generating link code" });
+    }
+});
+
+// 2. DELETE /user/link-code - clear existing link code
+app.delete("/user/link-code", verifyJWT, async (req, res) => {
+    try {
+        const user = await User.findOne({ userId: req.jwtUser.userId });
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+        user.linkCode = null;
+        await user.save();
+        console.log(`[AUDIT] Link code cleared for user ${user.userId}`);
+        res.status(200).json({ success: true });
+    } catch (err) {
+        console.error("Error clearing link code:", err);
+        res.status(500).json({ message: "Error clearing link code" });
+    }
+});
+
+// 3. POST /extension/link - body: { linkCode, extensionId? }
+//    Finds user by linkCode, clears linkCode, sets extensionLinked & optional extensionId
+app.post("/extension/link", async (req, res) => {
+    const { linkCode, extensionId } = req.body || {};
+    if (!linkCode) {
+        return res.status(400).json({ message: "linkCode is required" });
+    }
+    try {
+        const clientIP =
+            req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
+            req.ip ||
+            "unknown";
+
+        // Check lockout
+        const remaining = checkExtensionLock(clientIP);
+        if (remaining > 0) {
+            return res.status(429).json({
+                message: "Too many failed attempts. Temporarily locked.",
+                retryAfterMs: remaining,
+            });
+        }
+
+        // Hash provided linkCode for lookup
+        const hashedProvided = require("crypto")
+            .createHash("sha256")
+            .update(linkCode)
+            .digest("hex");
+        const user = await User.findOne({ linkCode: hashedProvided });
+        if (!user) {
+            const entry = recordExtensionFailure(clientIP);
+            return res
+                .status(404)
+                .json({ message: "Invalid or expired link code" });
+        }
+        user.linkCode = null; // consume code
+        user.extensionLinked = true;
+        if (extensionId) user.extensionId = extensionId;
+        await user.save();
+        console.log(
+            `[AUDIT] Extension linked for user ${user.userId} (extensionId=${
+                extensionId || "n/a"
+            }) from ${clientIP}`
+        );
+        res.status(200).json({
+            success: true,
+            user: {
+                userId: user.userId,
+                username: user.username,
+                displayName: user.displayName,
+                extensionLinked: user.extensionLinked,
+                extensionId: user.extensionId,
+                totalCodingTime: user.totalCodingTime,
+            },
+        });
+    } catch (err) {
+        console.error("Error linking extension:", err);
+        res.status(500).json({ message: "Error linking extension" });
+    }
+});
+
+// ! Legacy API endpoints (keeping for backward compatibility)
 
 // Discord OAuth Callback Handler (Legacy - for API usage)
 app.post("/auth/discord/callback", async (req, res) => {

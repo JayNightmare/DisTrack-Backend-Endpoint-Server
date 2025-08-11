@@ -59,6 +59,8 @@ const userSchema = new mongoose.Schema(
         archivedAt: { type: Date, default: null }, // New field to track when user was archived
         // //
         linkCode: { type: String, default: null }, // New field for user link code
+        extensionLinked: { type: Boolean, default: false }, // Whether an extension has been linked
+        extensionId: { type: String, default: null }, // Optional external extension identifier
     },
     {
         timestamps: true, // Automatically manage createdAt and updatedAt fields
