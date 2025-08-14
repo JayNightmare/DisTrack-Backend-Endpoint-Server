@@ -11,25 +11,10 @@ module.exports = {
         "https://api.endpoint-system.uk/auth/discord/callback",
     JWT_SECRET: process.env.JWT_SECRET || "your-jwt-secret-key",
     SESSION_SECRET: process.env.SESSION_SECRET || "your-session-secret-key",
-    LINK_CODE_LENGTH: parseInt(process.env.LINK_CODE_LENGTH || "8", 10),
-    LINK_CODE_RATE_LIMIT_WINDOW_MS: parseInt(
-        process.env.LINK_CODE_RATE_LIMIT_WINDOW_MS || "300000",
-        10
-    ), // 5 minutes
-    LINK_CODE_RATE_LIMIT_MAX: parseInt(
-        process.env.LINK_CODE_RATE_LIMIT_MAX || "5",
-        10
-    ),
-    EXTENSION_LINK_MAX_FAILURES: parseInt(
-        process.env.EXTENSION_LINK_MAX_FAILURES || "10",
-        10
-    ),
-    EXTENSION_LINK_FAILURE_WINDOW_MS: parseInt(
-        process.env.EXTENSION_LINK_FAILURE_WINDOW_MS || "600000",
-        10
-    ), // 10 minutes
-    EXTENSION_LINK_LOCKOUT_MS: parseInt(
-        process.env.EXTENSION_LINK_LOCKOUT_MS || "300000",
-        10
-    ), // 5 minutes
+    LINK_CODE_LENGTH: 6,
+    LINK_CODE_RATE_LIMIT_WINDOW_MS: 300000, // 5 minutes
+    LINK_CODE_RATE_LIMIT_MAX: 5,
+    EXTENSION_LINK_MAX_FAILURES: 10,
+    EXTENSION_LINK_FAILURE_WINDOW_MS: 600000, // 10 minutes
+    EXTENSION_LINK_LOCKOUT_MS: 300000, // 5 minutes
 };
