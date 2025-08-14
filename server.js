@@ -1149,9 +1149,10 @@ function checkExtensionLock(ip) {
 }
 
 // 1. POST /user/link-code - generate and store a new link code for authenticated user
-app.post("/user/link-code", async (req, res) => {
+app.post("/user/link-code/:userId", async (req, res) => {
     try {
-        const user = await User.findOne({ userId: req.jwtUser.userId });
+        const { userId } = req.params;
+        const user = await User.findOne({ userId });
         if (!user) {
             return res.status(404).json({ message: "User not found" });
         }
@@ -1227,9 +1228,10 @@ app.post("/user/link-code", async (req, res) => {
 });
 
 // 2. DELETE /user/link-code - clear existing link code
-app.delete("/user/link-code", async (req, res) => {
+app.delete("/user/link-code/:userId", async (req, res) => {
     try {
-        const user = await User.findOne({ userId: req.jwtUser.userId });
+        const { userId } = req.params;
+        const user = await User.findOne({ userId });
         if (!user) {
             return res.status(404).json({ message: "User not found" });
         }
@@ -1272,7 +1274,7 @@ app.post("/extension/link", async (req, res) => {
             .digest("hex");
         const user = await User.findOne({ linkCode: hashedProvided });
         if (!user) {
-            const entry = recordExtensionFailure(clientIP);
+            recordExtensionFailure(clientIP);
             return res
                 .status(404)
                 .json({ message: "Invalid or expired link code" });
