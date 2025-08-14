@@ -1051,32 +1051,8 @@ app.get("/auth/logout", (req, res, next) => {
     });
 });
 
-// * JWT Token Verification Middleware
-function verifyJWT(req, res, next) {
-    const authHeader = req.headers["authorization"];
-    const token = authHeader?.startsWith("Bearer ")
-        ? authHeader.split(" ")[1]
-        : authHeader;
-
-    if (!token) {
-        return res.status(401).json({
-            message: "Access token required",
-        });
-    }
-
-    try {
-        const decoded = jwt.verify(token, JWT_SECRET);
-        req.jwtUser = decoded;
-        next();
-    } catch (error) {
-        return res.status(403).json({
-            message: "Invalid or expired token",
-        });
-    }
-}
-
 // * Route: Verify JWT Token
-app.post("/auth/verify-token", verifyJWT, async (req, res) => {
+app.post("/auth/verify-token", async (req, res) => {
     try {
         // Get fresh user data
         const user = await User.findOne({ userId: req.jwtUser.userId });
@@ -1173,7 +1149,7 @@ function checkExtensionLock(ip) {
 }
 
 // 1. POST /user/link-code - generate and store a new link code for authenticated user
-app.post("/user/link-code", verifyJWT, async (req, res) => {
+app.post("/user/link-code", async (req, res) => {
     try {
         const user = await User.findOne({ userId: req.jwtUser.userId });
         if (!user) {
@@ -1251,7 +1227,7 @@ app.post("/user/link-code", verifyJWT, async (req, res) => {
 });
 
 // 2. DELETE /user/link-code - clear existing link code
-app.delete("/user/link-code", verifyJWT, async (req, res) => {
+app.delete("/user/link-code", async (req, res) => {
     try {
         const user = await User.findOne({ userId: req.jwtUser.userId });
         if (!user) {
