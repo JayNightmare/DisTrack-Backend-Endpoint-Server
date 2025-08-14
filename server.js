@@ -1240,10 +1240,10 @@ app.delete("/user/link-code/:userId", async (req, res) => {
     }
 });
 
-// 3. POST /extension/link - body: { linkCode, extensionId? }
-//    Finds user by linkCode, clears linkCode, sets extensionLinked & optional extensionId
+// 3. POST /extension/link - body: { linkCode }
+//    Finds user by linkCode, clears linkCode, sets extensionLinked
 app.post("/extension/link", async (req, res) => {
-    const { linkCode, extensionId } = req.body || {};
+    const { linkCode } = req.body || {};
     if (!linkCode) {
         return res.status(400).json({ message: "linkCode is required" });
     }
@@ -1271,12 +1271,9 @@ app.post("/extension/link", async (req, res) => {
         }
         user.linkCode = null; // consume code
         user.extensionLinked = true;
-        if (extensionId) user.extensionId = extensionId;
         await user.save();
         console.log(
-            `[AUDIT] Extension linked for user ${user.userId} (extensionId=${
-                extensionId || "n/a"
-            }) from ${clientIP}`
+            `[AUDIT] Extension linked for user ${user.userId} from ${clientIP}`
         );
         res.status(200).json({
             success: true,
@@ -1285,7 +1282,6 @@ app.post("/extension/link", async (req, res) => {
                 username: user.username,
                 displayName: user.displayName,
                 extensionLinked: user.extensionLinked,
-                extensionId: user.extensionId,
                 totalCodingTime: user.totalCodingTime,
             },
         });
