@@ -60,7 +60,6 @@ const userSchema = new mongoose.Schema(
         // //
         linkCode: { type: String, default: null }, // New field for user link code
         extensionLinked: { type: Boolean, default: false }, // Whether an extension has been linked
-        extensionId: { type: String, default: null }, // Optional external extension identifier
     },
     {
         timestamps: true, // Automatically manage createdAt and updatedAt fields
