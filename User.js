@@ -57,6 +57,10 @@ const userSchema = new mongoose.Schema(
         lastSessionDate: { type: Date, default: null }, // New field to track last coding session date
         archived: { type: Boolean, default: false }, // New field for archiving inactive users
         archivedAt: { type: Date, default: null }, // New field to track when user was archived
+        // //
+        linkCode: { type: String, default: null }, // New field for user link code
+        extensionLinked: { type: Boolean, default: false }, // Whether an extension has been linked
+        extensionId: { type: String, default: null }, // Optional external extension identifier
     },
     {
         timestamps: true, // Automatically manage createdAt and updatedAt fields
