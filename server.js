@@ -1087,7 +1087,7 @@ app.post("/auth/verify-token", async (req, res) => {
 
 // Helper to generate a 6-character alphanumeric code (uppercase letters & digits)
 function generateLinkCode() {
-    const length = LINK_CODE_LENGTH || 8;
+    const length = LINK_CODE_LENGTH || 6;
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // exclude ambiguous chars
     let code = "";
     for (let i = 0; i < length; i++) {
