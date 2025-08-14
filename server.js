@@ -1210,12 +1210,7 @@ app.post("/user/link-code/:userId", async (req, res) => {
                 .json({ message: "Failed to generate unique link code" });
         }
 
-        // Hash code before storing for security (prevent enumeration if DB leaked)
-        const hashed = require("crypto")
-            .createHash("sha256")
-            .update(code)
-            .digest("hex");
-        user.linkCode = hashed;
+        user.linkCode = code;
         await user.save();
         console.log(
             `[AUDIT] Link code generated for user ${user.userId} from ${clientIP}`
@@ -1267,12 +1262,7 @@ app.post("/extension/link", async (req, res) => {
             });
         }
 
-        // Hash provided linkCode for lookup
-        const hashedProvided = require("crypto")
-            .createHash("sha256")
-            .update(linkCode)
-            .digest("hex");
-        const user = await User.findOne({ linkCode: hashedProvided });
+        const user = await User.findOne({ linkCode });
         if (!user) {
             recordExtensionFailure(clientIP);
             return res
