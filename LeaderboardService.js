@@ -222,6 +222,8 @@ class LeaderboardService {
                 users.map(async (user) => ({
                     userId: user.userId,
                     username: user.username || "Anonymous",
+                    displayName:
+                        user.displayName || user.username || "Anonymous",
                     totalTime: await this.getTimeframeTotal(user, timeframe),
                 }))
             );
@@ -278,6 +280,7 @@ class LeaderboardService {
                     return {
                         userId: user.userId,
                         username: user.username,
+                        displayName: user.displayName,
                         rank: user.rank,
                         totalTime: user.totalTime,
                         rankDelta: rankDelta,
