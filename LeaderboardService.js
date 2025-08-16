@@ -222,6 +222,8 @@ class LeaderboardService {
                 users.map(async (user) => ({
                     userId: user.userId,
                     username: user.username || "Anonymous",
+                    displayName:
+                        user.displayName || user.username || "Anonymous",
                     totalTime: await this.getTimeframeTotal(user, timeframe),
                 }))
             );
