@@ -601,6 +601,7 @@ app.get("/leaderboard", async (req, res) => {
         const users = await User.find().sort({ totalCodingTime: -1 });
         const leaderboard = users.slice(0, 10).map((user) => ({
             username: user.username || "Anonymous", // Ensure username exists
+            displayName: user.displayName || user.username || "Anonymous",
             totalCodingTime: user.totalCodingTime,
             userId: user.userId,
         }));
