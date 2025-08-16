@@ -1268,14 +1268,15 @@ app.post("/extension/link", async (req, res) => {
             return res
                 .status(404)
                 .json({ message: "Invalid or expired link code" });
-        } else {
-            user.linkCode = null; // consume code
-            user.extensionLinked = true;
-            await user.save();
-            console.log(
-                `[AUDIT] Extension linked for user ${user.userId} from ${clientIP}`
-            );
         }
+
+        user.linkCode = null; // consume code
+        user.extensionLinked = true;
+        await user.save();
+        console.log(
+            `[AUDIT] Extension linked for user ${user.userId} from ${clientIP}`
+        );
+
         res.status(200).json({
             success: true,
             user: {
