@@ -280,6 +280,7 @@ class LeaderboardService {
                     return {
                         userId: user.userId,
                         username: user.username,
+                        displayName: user.displayName,
                         rank: user.rank,
                         totalTime: user.totalTime,
                         rankDelta: rankDelta,
