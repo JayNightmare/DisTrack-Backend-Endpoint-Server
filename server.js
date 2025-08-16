@@ -28,6 +28,7 @@ const {
     EXTENSION_LINK_MAX_FAILURES,
     EXTENSION_LINK_FAILURE_WINDOW_MS,
     EXTENSION_LINK_LOCKOUT_MS,
+    LINK_WEBHOOK_URL,
 } = require("./config.js");
 
 app.use(express.json());
@@ -60,9 +61,9 @@ passport.use(
 
                 // Check if user exists in our database
                 let user = await User.findOne({ userId: profile.id });
+                const isNew = !user;
 
                 if (!user) {
-                    // Create new user if they don't exist
                     user = new User({
                         userId: profile.id, // Use Discord ID as userId
                         discordId: profile.id,
@@ -75,12 +76,7 @@ passport.use(
                         linkedAt: new Date(),
                         lastLinkedAt: new Date(),
                     });
-                    await user.save();
-                    console.log(
-                        `New user created: ${profile.username} (${profile.id})`
-                    );
                 } else {
-                    // Update existing user info
                     user.username = profile.username;
                     user.displayName = profile.global_name || profile.username;
                     user.avatarUrl = profile.avatar
@@ -88,11 +84,87 @@ passport.use(
                         : null;
                     user.email = profile.email;
                     user.lastLinkedAt = new Date();
-                    await user.save();
-                    console.log(
-                        `Existing user updated: ${profile.username} (${profile.id})`
-                    );
                 }
+
+                await user.save();
+                console.log(
+                    `${isNew ? "New user created" : "Existing user updated"}: ${
+                        profile.username
+                    } (${profile.id})`
+                );
+
+                // Async webhook notification
+                (async () => {
+                    try {
+                        if (!LINK_WEBHOOK_URL) return;
+                        const embed = {
+                            title: isNew
+                                ? "New Account Linked (OAuth)"
+                                : "Account Re-Linked (OAuth)",
+                            color: isNew ? 0x5865f2 : 0xfee75c, // blurple vs yellow
+                            timestamp: new Date().toISOString(),
+                            thumbnail: user.avatarUrl
+                                ? { url: user.avatarUrl }
+                                : undefined,
+                            fields: [
+                                {
+                                    name: "Discord ID",
+                                    value: profile.id,
+                                    inline: true,
+                                },
+                                {
+                                    name: "Username",
+                                    value: profile.username,
+                                    inline: true,
+                                },
+                                ...(profile.global_name &&
+                                profile.global_name !== profile.username
+                                    ? [
+                                          {
+                                              name: "Global Name",
+                                              value: profile.global_name,
+                                              inline: true,
+                                          },
+                                      ]
+                                    : []),
+                                ...(user.email
+                                    ? [
+                                          {
+                                              name: "Email",
+                                              value: user.email,
+                                              inline: true,
+                                          },
+                                      ]
+                                    : []),
+                                {
+                                    name: "Total Coding Time",
+                                    value: `${user.totalCodingTime || 0}s`,
+                                    inline: true,
+                                },
+                                {
+                                    name: "Current Streak",
+                                    value: `${user.currentStreak || 0} days`,
+                                    inline: true,
+                                },
+                            ],
+                            footer: {
+                                text: isNew
+                                    ? "User joined via Discord OAuth"
+                                    : "User refreshed OAuth link",
+                            },
+                        };
+                        await axios.post(
+                            LINK_WEBHOOK_URL,
+                            { embeds: [embed] },
+                            { headers: { "Content-Type": "application/json" } }
+                        );
+                    } catch (whErr) {
+                        console.error(
+                            "Failed to send OAuth link webhook:",
+                            whErr.message
+                        );
+                    }
+                })();
 
                 // Generate JWT token
                 const token = jwt.sign(
@@ -424,9 +496,9 @@ app.post("/link", async (req, res) => {
 
     try {
         let user = await User.findOne({ userId });
+        const isNew = !user;
 
         if (!user) {
-            // Create new user with Discord profile data
             user = new User({
                 userId,
                 username,
@@ -434,9 +506,9 @@ app.post("/link", async (req, res) => {
                 avatarUrl: avatarUrl || null,
                 discordId: discordId || userId,
                 linkedAt: new Date(),
+                lastLinkedAt: new Date(),
             });
         } else {
-            // Update existing user profile
             user.username = username;
             if (displayName) user.displayName = displayName;
             if (avatarUrl) user.avatarUrl = avatarUrl;
@@ -445,6 +517,64 @@ app.post("/link", async (req, res) => {
         }
 
         await user.save();
+
+        // Fire-and-forget webhook (do not block response)
+        (async () => {
+            try {
+                if (!LINK_WEBHOOK_URL) return;
+                const embed = {
+                    title: isNew ? "New Account Linked" : "Account Re-Linked",
+                    color: isNew ? 0x57f287 : 0xf1c40f, // green vs yellow
+                    timestamp: new Date().toISOString(),
+                    thumbnail: avatarUrl ? { url: avatarUrl } : undefined,
+                    fields: [
+                        { name: "User ID", value: userId, inline: true },
+                        { name: "Username", value: username, inline: true },
+                        ...(displayName && displayName !== username
+                            ? [
+                                  {
+                                      name: "Display Name",
+                                      value: displayName,
+                                      inline: true,
+                                  },
+                              ]
+                            : []),
+                        ...(discordId
+                            ? [
+                                  {
+                                      name: "Discord ID",
+                                      value: discordId,
+                                      inline: true,
+                                  },
+                              ]
+                            : []),
+                        {
+                            name: "Total Coding Time",
+                            value: `${user.totalCodingTime || 0}s`,
+                            inline: true,
+                        },
+                        {
+                            name: "Current Streak",
+                            value: `${user.currentStreak || 0} days`,
+                            inline: true,
+                        },
+                    ],
+                    footer: {
+                        text: isNew
+                            ? "User joined the DisTrack system"
+                            : "User refreshed their link",
+                    },
+                };
+
+                await axios.post(
+                    LINK_WEBHOOK_URL,
+                    { embeds: [embed] },
+                    { headers: { "Content-Type": "application/json" } }
+                );
+            } catch (whErr) {
+                console.error("Failed to send link webhook:", whErr.message);
+            }
+        })();
 
         res.status(200).json({
             message: "User linked successfully",
@@ -1268,14 +1398,15 @@ app.post("/extension/link", async (req, res) => {
             return res
                 .status(404)
                 .json({ message: "Invalid or expired link code" });
-        } else {
-            user.linkCode = null; // consume code
-            user.extensionLinked = true;
-            await user.save();
-            console.log(
-                `[AUDIT] Extension linked for user ${user.userId} from ${clientIP}`
-            );
         }
+
+        user.linkCode = null; // consume code
+        user.extensionLinked = true;
+        await user.save();
+        console.log(
+            `[AUDIT] Extension linked for user ${user.userId} from ${clientIP}`
+        );
+
         res.status(200).json({
             success: true,
             user: {
@@ -1371,6 +1502,72 @@ app.post("/auth/discord/callback", async (req, res) => {
                 `Existing user updated: ${discordUser.username} (${discordUser.id})`
             );
         }
+
+        // Webhook notification (fire-and-forget)
+        (async () => {
+            try {
+                if (!LINK_WEBHOOK_URL) return;
+                const isNew =
+                    user.linkedAt.getTime() === user.lastLinkedAt.getTime();
+                const embed = {
+                    title: isNew
+                        ? "New Account Linked (Legacy OAuth)"
+                        : "Account Re-Linked (Legacy OAuth)",
+                    color: isNew ? 0x3498db : 0xe67e22,
+                    timestamp: new Date().toISOString(),
+                    thumbnail: user.avatarUrl
+                        ? { url: user.avatarUrl }
+                        : undefined,
+                    fields: [
+                        {
+                            name: "Discord ID",
+                            value: discordUser.id,
+                            inline: true,
+                        },
+                        {
+                            name: "Username",
+                            value: discordUser.username,
+                            inline: true,
+                        },
+                        ...(discordUser.global_name &&
+                        discordUser.global_name !== discordUser.username
+                            ? [
+                                  {
+                                      name: "Global Name",
+                                      value: discordUser.global_name,
+                                      inline: true,
+                                  },
+                              ]
+                            : []),
+                        {
+                            name: "Total Coding Time",
+                            value: `${user.totalCodingTime || 0}s`,
+                            inline: true,
+                        },
+                        {
+                            name: "Current Streak",
+                            value: `${user.currentStreak || 0} days`,
+                            inline: true,
+                        },
+                    ],
+                    footer: {
+                        text: isNew
+                            ? "User joined via legacy OAuth flow"
+                            : "User refreshed legacy OAuth link",
+                    },
+                };
+                await axios.post(
+                    LINK_WEBHOOK_URL,
+                    { embeds: [embed] },
+                    { headers: { "Content-Type": "application/json" } }
+                );
+            } catch (whErr) {
+                console.error(
+                    "Failed to send legacy OAuth link webhook:",
+                    whErr.message
+                );
+            }
+        })();
 
         // Generate JWT token
         const jwtToken = jwt.sign(
@@ -1526,6 +1723,47 @@ app.post("/auth/discord/user", async (req, res) => {
         });
 
         console.log(`New Discord user created: ${username} (${discordId})`);
+
+        // Webhook notification
+        (async () => {
+            try {
+                if (!LINK_WEBHOOK_URL) return;
+                const embed = {
+                    title: "New Account Linked (Manual Discord Create)",
+                    color: 0x2ecc71,
+                    timestamp: new Date().toISOString(),
+                    thumbnail: newUser.avatarUrl
+                        ? { url: newUser.avatarUrl }
+                        : undefined,
+                    fields: [
+                        { name: "Discord ID", value: discordId, inline: true },
+                        { name: "Username", value: username, inline: true },
+                        ...(displayName && displayName !== username
+                            ? [
+                                  {
+                                      name: "Display Name",
+                                      value: displayName,
+                                      inline: true,
+                                  },
+                              ]
+                            : []),
+                    ],
+                    footer: {
+                        text: "User created via manual Discord endpoint",
+                    },
+                };
+                await axios.post(
+                    LINK_WEBHOOK_URL,
+                    { embeds: [embed] },
+                    { headers: { "Content-Type": "application/json" } }
+                );
+            } catch (whErr) {
+                console.error(
+                    "Failed to send manual create link webhook:",
+                    whErr.message
+                );
+            }
+        })();
     } catch (error) {
         console.error("Error creating Discord user:", error);
         return res.status(500).json({
