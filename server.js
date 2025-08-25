@@ -1141,14 +1141,14 @@ app.get("/auth/discord", passport.authenticate("discord"));
 app.get(
     "/auth/discord/callback",
     passport.authenticate("discord", {
-        failureRedirect: "https://distrack.endpoint-system.uk/login",
+        failureRedirect: "https://distrack.nexusgit.info/login",
     }),
     (req, res) => {
         // Successful authentication
         console.log("Discord OAuth success:", req.user);
 
         // Redirect with JWT token as query parameter
-        const redirectUrl = `https://distrack.endpoint-system.uk/auth/distrack?token=${
+        const redirectUrl = `https://distrack.nexusgit.info/auth/distrack?token=${
             req.user.jwtToken
         }&user=${encodeURIComponent(JSON.stringify(req.user.userProfile))}`;
         res.redirect(redirectUrl);
