@@ -8,7 +8,7 @@ module.exports = {
     DISCORD_CLIENT_SECRET: process.env.DISCORD_CLIENT_SECRET,
     DISCORD_CALLBACK_URL:
         process.env.DISCORD_CALLBACK_URL ||
-        "https://api.endpoint-system.uk/auth/discord/callback",
+        "url to discord auth call back",
     JWT_SECRET: process.env.JWT_SECRET || "your-jwt-secret-key",
     SESSION_SECRET: process.env.SESSION_SECRET || "your-session-secret-key",
     LINK_WEBHOOK_URL:
