@@ -8,12 +8,12 @@ module.exports = {
     DISCORD_CLIENT_SECRET: process.env.DISCORD_CLIENT_SECRET,
     DISCORD_CALLBACK_URL:
         process.env.DISCORD_CALLBACK_URL ||
-        "https://api.endpoint-system.uk/auth/discord/callback",
+        "url to discord auth call back",
     JWT_SECRET: process.env.JWT_SECRET || "your-jwt-secret-key",
     SESSION_SECRET: process.env.SESSION_SECRET || "your-session-secret-key",
     LINK_WEBHOOK_URL:
         process.env.LINK_WEBHOOK_URL ||
-        "https://discord.com/api/webhooks/1406098466454634608/k6EcXAOaMSKszeip98ZHGbKZn3_T91jfXIa2c2ze1yZGHIRr6EU7TbLmoChzD-rE73J3",
+        "webhook.link",
     LINK_CODE_LENGTH: 6,
     LINK_CODE_RATE_LIMIT_WINDOW_MS: 300000, // 5 minutes
     LINK_CODE_RATE_LIMIT_MAX: 5,
