@@ -13,7 +13,7 @@ module.exports = {
     SESSION_SECRET: process.env.SESSION_SECRET || "your-session-secret-key",
     LINK_WEBHOOK_URL:
         process.env.LINK_WEBHOOK_URL ||
-        "https://discord.com/api/webhooks/1406098466454634608/k6EcXAOaMSKszeip98ZHGbKZn3_T91jfXIa2c2ze1yZGHIRr6EU7TbLmoChzD-rE73J3",
+        "webhook.link",
     LINK_CODE_LENGTH: 6,
     LINK_CODE_RATE_LIMIT_WINDOW_MS: 300000, // 5 minutes
     LINK_CODE_RATE_LIMIT_MAX: 5,
