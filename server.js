@@ -1409,6 +1409,50 @@ app.post("/extension/link", async (req, res) => {
             `[AUDIT] Extension linked for user ${user.userId} from ${clientIP}`
         );
 
+        if (!LINK_WEBHOOK_URL) return console.log("No webhook URL set");
+        var embed = {
+            title: "Extension Linked",
+            color: 0x1abc9c, // teal
+            timestamp: new Date().toISOString(),
+            thumbnail: user.avatarUrl ? { url: user.avatarUrl } : undefined,
+            fields: [
+                { name: "User ID", value: user.userId, inline: true },
+                { name: "Username", value: user.username, inline: true },
+                ...(user.displayName && user.displayName !== user.username
+                    ? [
+                          {
+                              name: "Display Name",
+                              value: user.displayName,
+                              inline: true,
+                          },
+                      ]
+                    : []),
+                {
+                    name: "Total Coding Time",
+                    value: `${user.totalCodingTime || 0}s`,
+                    inline: true,
+                },
+                {
+                    name: "Current Streak",
+                    value: `${user.currentStreak || 0} days`,
+                    inline: true,
+                },
+            ],
+            footer: { text: "User linked their coding extension" },
+        };
+        // Fire-and-forget webhook
+
+        (async () => {
+            try {
+                await axios.post(LINK_WEBHOOK_URL, { embeds: [embed] });
+            } catch (whErr) {
+                console.error(
+                    "Failed to send extension link webhook:",
+                    whErr.message
+                );
+            }
+        })();
+
         res.status(200).json({
             success: true,
             user: {
