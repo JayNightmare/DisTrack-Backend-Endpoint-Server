@@ -96,7 +96,8 @@ passport.use(
                 // Async webhook notification
                 (async () => {
                     try {
-                        if (!LINK_WEBHOOK_URL) return;
+                        if (!LINK_WEBHOOK_URL)
+                            return console.log("No webhook URL set");
                         const embed = {
                             title: isNew
                                 ? "New Account Linked (OAuth)"
@@ -521,7 +522,7 @@ app.post("/link", async (req, res) => {
         // Fire-and-forget webhook (do not block response)
         (async () => {
             try {
-                if (!LINK_WEBHOOK_URL) return;
+                if (!LINK_WEBHOOK_URL) return console.log("No webhook URL set");
                 const embed = {
                     title: isNew ? "New Account Linked" : "Account Re-Linked",
                     color: isNew ? 0x57f287 : 0xf1c40f, // green vs yellow
@@ -1507,7 +1508,7 @@ app.post("/auth/discord/callback", async (req, res) => {
         // Webhook notification (fire-and-forget)
         (async () => {
             try {
-                if (!LINK_WEBHOOK_URL) return;
+                if (!LINK_WEBHOOK_URL) return console.log("No webhook URL set");
                 const isNew =
                     user.linkedAt.getTime() === user.lastLinkedAt.getTime();
                 const embed = {
@@ -1728,7 +1729,7 @@ app.post("/auth/discord/user", async (req, res) => {
         // Webhook notification
         (async () => {
             try {
-                if (!LINK_WEBHOOK_URL) return;
+                if (!LINK_WEBHOOK_URL) return console.log("No webhook URL set");
                 const embed = {
                     title: "New Account Linked (Manual Discord Create)",
                     color: 0x2ecc71,
