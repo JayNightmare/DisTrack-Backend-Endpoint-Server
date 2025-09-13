@@ -6,6 +6,7 @@ const PORT = 7071;
 const User = require("./User.js");
 const CodingSession = require("./CodingSession.js");
 const LeaderboardService = require("./LeaderboardService.js");
+const StatsService = require("./StatsService.js");
 const SnapshotScheduler = require("./SnapshotScheduler.js");
 const CronScheduler = require("./CronScheduler.js");
 const MonitoringService = require("./MonitoringService.js");
@@ -1850,6 +1851,96 @@ app.get("/auth/discord/url", (req, res) => {
     });
 
     console.log("Discord OAuth URL generated successfully");
+});
+
+// ----------------------------- //
+
+/* 
+    List of Endpoints for Stats API
+    - getGlobalStats
+    - getUserFilterStats
+    - getUserLanguageStats
+    - getUserHeatmapStats
+*/
+
+app.get("/stats/global", async (req, res) => {
+    console.log("GET /stats/global endpoint hit");
+    try {
+        const stats = await StatsService.getGlobalStats();
+        res.status(200).json(stats);
+        console.log("Global stats retrieved successfully");
+    } catch (error) {
+        console.error("Error getting global stats:", error);
+        res.status(500).json({
+            message: "Error getting global stats",
+            error: error.message,
+        });
+    }
+});
+
+// ----------------------------- //
+
+// User stats with time filters
+// Query params: startDate=YYYY-MM-DD, endDate=YYYY-MM-DD
+app.get("/stats/:userId/filter", async (req, res) => {
+    const { userId } = req.params;
+    const { startDate, endDate } = req.query;
+    console.log(`GET /stats/${userId}/filter endpoint hit`);
+    try {
+        const data = await StatsService.getUserFilterStats(userId, {
+            startDate,
+            endDate,
+        });
+        res.status(200).json(data);
+    } catch (error) {
+        console.error("Error getting user filter stats:", error);
+        res.status(500).json({
+            message: "Error getting user filter stats",
+            error: error.message,
+        });
+    }
+});
+
+// User language stats
+// Query params: startDate, endDate, topN
+app.get("/stats/:userId/languages", async (req, res) => {
+    const { userId } = req.params;
+    const { startDate, endDate, topN } = req.query;
+    console.log(`GET /stats/user/${userId}/languages endpoint hit`);
+    try {
+        const data = await StatsService.getUserLanguageStats(userId, {
+            startDate,
+            endDate,
+            topN: topN ? parseInt(topN, 10) : undefined,
+        });
+        res.status(200).json(data);
+    } catch (error) {
+        console.error("Error getting user language stats:", error);
+        res.status(500).json({
+            message: "Error getting user language stats",
+            error: error.message,
+        });
+    }
+});
+
+// User heatmap stats for a given year
+// Query params: year=YYYY (defaults to current year)
+app.get("/stats/:userId/heatmap", async (req, res) => {
+    const { userId } = req.params;
+    const { year } = req.query;
+    console.log(`GET /stats/user/${userId}/heatmap endpoint hit`);
+    try {
+        const data = await StatsService.getUserHeatmapStats(userId, {
+            year: year ? parseInt(year, 10) : undefined,
+        });
+        res.status(200).json(data);
+    } catch (error) {
+        console.error("Error getting user heatmap stats:", error);
+        res.status(500).json({
+            message: "Error getting user heatmap stats",
+            error: error.message,
+        });
+    }
 });
 
 app.listen(PORT, () => {
