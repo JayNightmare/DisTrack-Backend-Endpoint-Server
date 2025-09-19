@@ -48,6 +48,9 @@ const codingSessionSchema = new mongoose.Schema(
             typescript: { type: Number, default: 0 },
             markdown: { type: Number, default: 0 },
             properties: { type: Number, default: 0 },
+            yaml: { type: Number, default: 0 },
+            xml: { type: Number, default: 0 },
+            other: { type: Number, default: 0 },
         },
         sessionDate: {
             type: Date,

@@ -429,6 +429,287 @@ const StatsService = {
             days: byDate, // { 'YYYY-MM-DD': seconds }
         };
     },
+
+    // ---------------- Global live/trends/heatmap/growth ---------------- //
+
+    // Live counters for homepage
+    async getGlobalLive() {
+        const now = new Date();
+        const startToday = startOfDay(now);
+        const endToday = endOfDay(now);
+        const onlineWindowMs = 10 * 60 * 1000; // 10 minutes
+        const onlineSince = new Date(now.getTime() - onlineWindowMs);
+
+        const [totalUsersSum, sessionsToday, usersOnlineDistinct] =
+            await Promise.all([
+                // Sum totalCodingTime across users (seconds)
+                User.aggregate([
+                    {
+                        $group: {
+                            _id: null,
+                            seconds: { $sum: "$totalCodingTime" },
+                        },
+                    },
+                ]).then((r) => r[0]?.seconds || 0),
+                CodingSession.find(
+                    { sessionDate: { $gte: startToday, $lte: endToday } },
+                    { duration: 1, languages: 1 }
+                ).lean(),
+                CodingSession.distinct("userId", {
+                    endTime: { $gte: onlineSince },
+                }),
+            ]);
+
+        let totalSecToday = 0;
+        let topLang = null;
+        let avgSessionMin = 0;
+
+        if (sessionsToday.length > 0) {
+            const langTotals = {};
+            for (const s of sessionsToday) {
+                totalSecToday += s.duration || 0;
+                const langs = s.languages || {};
+                for (const [k, v] of Object.entries(langs)) {
+                    if (!v || typeof v !== "number") continue;
+                    langTotals[k] = (langTotals[k] || 0) + v;
+                }
+            }
+            const top = Object.entries(langTotals).sort(
+                (a, b) => b[1] - a[1]
+            )[0];
+            topLang = top ? top[0] : null;
+            avgSessionMin = totalSecToday / sessionsToday.length / 60;
+        }
+
+        return {
+            totalHoursTracked: +((totalUsersSum || 0) / 3600).toFixed(2),
+            usersOnline: usersOnlineDistinct.length || 0,
+            sessionsToday: sessionsToday.length || 0,
+            topLanguageToday: topLang,
+            avgSessionMinutes: +avgSessionMin.toFixed(1),
+        };
+    },
+
+    // 7-day or N-day rolling trends for mini-cards
+    async getGlobalTrends(days = 7) {
+        const now = new Date();
+        const start = startOfDay(addDays(now, -(days - 1)));
+
+        // Aggregate per day totals and active users
+        const rows = await CodingSession.aggregate([
+            { $match: { sessionDate: { $gte: start, $lte: endOfDay(now) } } },
+            {
+                $group: {
+                    _id: "$sessionDate",
+                    seconds: { $sum: "$duration" },
+                    users: { $addToSet: "$userId" },
+                },
+            },
+            {
+                $project: {
+                    _id: 1,
+                    seconds: 1,
+                    activeUsers: { $size: "$users" },
+                    users: 1,
+                },
+            },
+            { $sort: { _id: 1 } },
+        ]);
+
+        // Build day map and union of users
+        const byDate = new Map();
+        const unionUsers = new Set();
+        for (const r of rows) {
+            const k = dateKeyYYYYMMDD(r._id);
+            byDate.set(k, {
+                seconds: r.seconds,
+                activeUsers: r.activeUsers,
+                users: r.users,
+            });
+            for (const u of r.users) unionUsers.add(u);
+        }
+
+        // Load current streaks for users (approximation for each day)
+        const userList = Array.from(unionUsers);
+        const streakMap = new Map();
+        if (userList.length > 0) {
+            const userDocs = await User.find(
+                { userId: { $in: userList } },
+                { userId: 1, currentStreak: 1 }
+            ).lean();
+            for (const u of userDocs)
+                streakMap.set(u.userId, u.currentStreak || 0);
+        }
+
+        const allDays = enumerateDaysInclusive(start, now);
+        const hoursTracked = [];
+        const activeUsers = [];
+        const avgStreak = [];
+        for (const d of allDays) {
+            const k = dateKeyYYYYMMDD(d);
+            const e = byDate.get(k);
+            const sec = e?.seconds || 0;
+            const au = e?.activeUsers || 0;
+            hoursTracked.push(+(sec / 3600).toFixed(2));
+            activeUsers.push(au);
+            if (e?.users?.length) {
+                const sum = e.users.reduce(
+                    (acc, uid) => acc + (streakMap.get(uid) || 0),
+                    0
+                );
+                avgStreak.push(+(sum / e.users.length).toFixed(1));
+            } else {
+                avgStreak.push(0);
+            }
+        }
+
+        return { hoursTracked, activeUsers, avgStreak };
+    },
+
+    // Hour heatmap for last N days (UTC)
+    async getGlobalHourlyHeatmap(windowDays = 30) {
+        const now = new Date();
+        const start = addDays(now, -windowDays);
+        const rows = await CodingSession.aggregate([
+            { $match: { startTime: { $gte: start } } },
+            {
+                $group: {
+                    _id: {
+                        d: {
+                            $dayOfWeek: { date: "$startTime", timezone: "UTC" },
+                        }, // 1(Sun)-7(Sat)
+                        h: { $hour: { date: "$startTime", timezone: "UTC" } },
+                    },
+                    seconds: { $sum: "$duration" },
+                },
+            },
+            {
+                $project: {
+                    dayOfWeek: { $subtract: ["$_id.d", 1] },
+                    hour: "$_id.h",
+                    seconds: 1,
+                },
+            },
+        ]);
+
+        // Initialize 7x24 matrix (Sun=0..Sat=6)
+        const matrix = Array.from({ length: 7 }, () => Array(24).fill(0));
+        for (const r of rows) {
+            const d = Math.max(0, Math.min(6, r.dayOfWeek));
+            const h = Math.max(0, Math.min(23, r.hour));
+            matrix[d][h] = (matrix[d][h] || 0) + (r.seconds || 0);
+        }
+        return { matrix };
+    },
+
+    // Language growth over periods across the platform
+    async getLanguageGrowth(period = "week", limit = 10) {
+        const now = new Date();
+        let days = 7;
+        if (typeof period === "string") {
+            switch (period.toLowerCase()) {
+                case "day":
+                case "1d":
+                    days = 1;
+                    break;
+                case "week":
+                case "7d":
+                    days = 7;
+                    break;
+                case "month":
+                case "30d":
+                    days = 30;
+                    break;
+                default:
+                    days = 7;
+            }
+        }
+        const startCurrent = startOfDay(addDays(now, -days + 1));
+        const endCurrent = now;
+        const startPrev = startOfDay(addDays(startCurrent, -days));
+        const endPrev = addDays(startCurrent, -1);
+
+        const languageKeys = [
+            "javascript",
+            "html",
+            "css",
+            "python",
+            "c",
+            "cpp",
+            "csharp",
+            "dart",
+            "go",
+            "json",
+            "kotlin",
+            "matlab",
+            "perl",
+            "php",
+            "r",
+            "ruby",
+            "rust",
+            "scala",
+            "sql",
+            "swift",
+            "typescript",
+            "markdown",
+            "properties",
+            "yaml",
+            "xml",
+            "other",
+        ];
+
+        async function sumLanguages(rangeStart, rangeEnd) {
+            const groupStage = {
+                _id: null,
+            };
+            for (const k of languageKeys) {
+                groupStage[k] = { $sum: { $ifNull: [`$languages.${k}`, 0] } };
+            }
+            const agg = await CodingSession.aggregate([
+                { $match: { startTime: { $gte: rangeStart, $lte: rangeEnd } } },
+                { $group: groupStage },
+            ]);
+            const doc = agg[0] || {};
+            const out = {};
+            for (const k of languageKeys) {
+                const sec = doc[k] || 0;
+                out[k] = +(sec / 3600).toFixed(2); // hours
+            }
+            return out;
+        }
+
+        const [currentTotals, previousTotals] = await Promise.all([
+            sumLanguages(startCurrent, endCurrent),
+            sumLanguages(startPrev, endPrev),
+        ]);
+
+        // Limit to top N based on currentTotals; accumulate 'other'
+        const entries = Object.entries(currentTotals).sort(
+            (a, b) => b[1] - a[1]
+        );
+        if (limit && Number.isFinite(limit)) {
+            const top = entries.slice(0, limit).map(([k]) => k);
+            const resultCur = {};
+            const resultPrev = {};
+            let otherCur = 0;
+            let otherPrev = 0;
+            for (const [k, v] of entries) {
+                if (top.includes(k)) {
+                    resultCur[k] = v;
+                    resultPrev[k] = previousTotals[k] || 0;
+                } else {
+                    otherCur += v;
+                    otherPrev += previousTotals[k] || 0;
+                }
+            }
+            if (otherCur > 0 || otherPrev > 0) {
+                resultCur.other = +otherCur.toFixed(2);
+                resultPrev.other = +otherPrev.toFixed(2);
+            }
+            return { current: resultCur, previous: resultPrev };
+        }
+        return { current: currentTotals, previous: previousTotals };
+    },
 };
 
 module.exports = StatsService;
