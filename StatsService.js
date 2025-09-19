@@ -710,6 +710,108 @@ const StatsService = {
         }
         return { current: currentTotals, previous: previousTotals };
     },
+
+    // Fastest growing users by delta hours for the period
+    async getUserGrowth(period = "week", limit = 10) {
+        const now = new Date();
+        let days = 7;
+        if (typeof period === "string") {
+            switch (period.toLowerCase()) {
+                case "day":
+                case "1d":
+                    days = 1;
+                    break;
+                case "week":
+                case "7d":
+                    days = 7;
+                    break;
+                case "month":
+                case "30d":
+                    days = 30;
+                    break;
+                default:
+                    days = 7;
+            }
+        }
+        const startCurrent = startOfDay(addDays(now, -days + 1));
+        const endCurrent = now;
+        const startPrev = startOfDay(addDays(startCurrent, -days));
+        const endPrev = addDays(startCurrent, -1);
+
+        // Aggregate seconds per user for current and previous periods
+        const [curRows, prevRows] = await Promise.all([
+            CodingSession.aggregate([
+                {
+                    $match: {
+                        startTime: { $gte: startCurrent, $lte: endCurrent },
+                    },
+                },
+                { $group: { _id: "$userId", seconds: { $sum: "$duration" } } },
+            ]),
+            CodingSession.aggregate([
+                { $match: { startTime: { $gte: startPrev, $lte: endPrev } } },
+                { $group: { _id: "$userId", seconds: { $sum: "$duration" } } },
+            ]),
+        ]);
+
+        const prevMap = new Map(prevRows.map((r) => [r._id, r.seconds || 0]));
+
+        // Build entries with delta
+        let entries = curRows.map((r) => {
+            const userId = r._id;
+            const cur = r.seconds || 0;
+            const prev = prevMap.get(userId) || 0;
+            const delta = cur - prev;
+            return {
+                userId,
+                currentSeconds: cur,
+                previousSeconds: prev,
+                deltaSeconds: delta,
+            };
+        });
+
+        // Include users that only had previous activity but none now (negative growth)
+        for (const r of prevRows) {
+            if (!entries.find((e) => e.userId === r._id)) {
+                entries.push({
+                    userId: r._id,
+                    currentSeconds: 0,
+                    previousSeconds: r.seconds || 0,
+                    deltaSeconds: -(r.seconds || 0),
+                });
+            }
+        }
+
+        // Sort by delta descending and limit
+        entries.sort((a, b) => b.deltaSeconds - a.deltaSeconds);
+        if (limit && Number.isFinite(limit)) entries = entries.slice(0, limit);
+
+        // Fetch user display info
+        const ids = entries.map((e) => e.userId);
+        const users = await User.find(
+            { userId: { $in: ids } },
+            {
+                userId: 1,
+                username: 1,
+                displayName: 1,
+                avatarUrl: 1,
+                totalCodingTime: 1,
+            }
+        ).lean();
+        const uMap = new Map(users.map((u) => [u.userId, u]));
+
+        return entries.map((e) => {
+            const u = uMap.get(e.userId);
+            const name = u?.displayName || u?.username || "Anonymous";
+            return {
+                userId: e.userId,
+                name,
+                avatarUrl: u?.avatarUrl || null,
+                deltaHours: +(e.deltaSeconds / 3600).toFixed(2),
+                totalHours: +(e.currentSeconds / 3600).toFixed(2),
+            };
+        });
+    },
 };
 
 module.exports = StatsService;
