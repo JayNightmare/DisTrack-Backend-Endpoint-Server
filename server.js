@@ -325,6 +325,7 @@ app.use((req, res, next) => {
 
     const isPublicLeaderboard =
         req.path.startsWith("/leaderboard") && req.method === "GET";
+    const isPublicStats = req.path.startsWith("/stats") && req.method === "GET";
 
     const isDiscordOAuth =
         req.path.startsWith("/auth/discord") &&
@@ -339,6 +340,7 @@ app.use((req, res, next) => {
     if (
         isPublicEndpoint ||
         isPublicLeaderboard ||
+        isPublicStats ||
         isDiscordOAuth ||
         isPublicBotSharable
     ) {
@@ -613,6 +615,28 @@ app.get("/leaderboard", async (req, res) => {
         return res.status(500).json({
             error: "Internal server error",
             details: error.message,
+        });
+    }
+});
+
+// Leaderboard growth per language across the platform
+// Place BEFORE /leaderboard/:timeframe to avoid route conflicts
+app.get("/leaderboard/growth", async (req, res) => {
+    const { period = "week", limit = "10" } = req.query;
+    console.log(
+        `GET /leaderboard/growth?period=${period}&limit=${limit} endpoint hit`
+    );
+    try {
+        const data = await StatsService.getLanguageGrowth(
+            period,
+            parseInt(limit, 10)
+        );
+        res.status(200).json(data);
+    } catch (error) {
+        console.error("Error getting leaderboard growth:", error);
+        res.status(500).json({
+            message: "Error getting leaderboard growth",
+            error: error.message,
         });
     }
 });
@@ -1873,6 +1897,55 @@ app.get("/stats/global", async (req, res) => {
         console.error("Error getting global stats:", error);
         res.status(500).json({
             message: "Error getting global stats",
+            error: error.message,
+        });
+    }
+});
+
+// Live counters for homepage hero row
+app.get("/stats/global/live", async (req, res) => {
+    console.log("GET /stats/global/live endpoint hit");
+    try {
+        const data = await StatsService.getGlobalLive();
+        res.status(200).json(data);
+    } catch (error) {
+        console.error("Error getting global live stats:", error);
+        res.status(500).json({
+            message: "Error getting global live stats",
+            error: error.message,
+        });
+    }
+});
+
+// Rolling trends for homepage mini-cards
+app.get("/stats/global/trends", async (req, res) => {
+    const days = req.query.days ? parseInt(req.query.days, 10) : 7;
+    console.log(`GET /stats/global/trends?days=${days} endpoint hit`);
+    try {
+        const data = await StatsService.getGlobalTrends(days);
+        res.status(200).json(data);
+    } catch (error) {
+        console.error("Error getting global trends:", error);
+        res.status(500).json({
+            message: "Error getting global trends",
+            error: error.message,
+        });
+    }
+});
+
+// 24x7 UTC hour heatmap matrix for last N days
+app.get("/stats/global/heatmap/hourly", async (req, res) => {
+    const window = req.query.window ? parseInt(req.query.window, 10) : 30;
+    console.log(
+        `GET /stats/global/heatmap/hourly?window=${window} endpoint hit`
+    );
+    try {
+        const data = await StatsService.getGlobalHourlyHeatmap(window);
+        res.status(200).json(data);
+    } catch (error) {
+        console.error("Error getting global hourly heatmap:", error);
+        res.status(500).json({
+            message: "Error getting global hourly heatmap",
             error: error.message,
         });
     }
