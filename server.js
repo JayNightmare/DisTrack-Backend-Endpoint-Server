@@ -334,6 +334,9 @@ app.use((req, res, next) => {
     const isPublicBotSharable =
         req.path.startsWith("/user") && req.method === "GET";
 
+    const isPublicGlobalStats =
+        req.path === "/stats/global/live" && req.method === "GET";
+
     const isPublicEndpoint =
         publicEndpoints.includes(req.path) && req.method === "GET";
 
@@ -342,7 +345,8 @@ app.use((req, res, next) => {
         isPublicLeaderboard ||
         isPublicStats ||
         isDiscordOAuth ||
-        isPublicBotSharable
+        isPublicBotSharable ||
+        isPublicGlobalStats
     ) {
         console.log("Public endpoint accessed:", req.method, req.path);
         return next();

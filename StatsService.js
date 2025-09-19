@@ -477,6 +477,7 @@ const StatsService = {
             const top = Object.entries(langTotals).sort(
                 (a, b) => b[1] - a[1]
             )[0];
+
             topLang = top ? top[0] : null;
             avgSessionMin = totalSecToday / sessionsToday.length / 60;
         }
