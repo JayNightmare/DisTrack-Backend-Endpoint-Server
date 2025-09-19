@@ -627,7 +627,8 @@ app.get("/leaderboard/growth", async (req, res) => {
         `GET /leaderboard/growth?period=${period}&limit=${limit} endpoint hit`
     );
     try {
-        const data = await StatsService.getLanguageGrowth(
+        // Fastest growing users by delta hours (Hall of Flame)
+        const data = await StatsService.getUserGrowth(
             period,
             parseInt(limit, 10)
         );
@@ -1946,6 +1947,30 @@ app.get("/stats/global/heatmap/hourly", async (req, res) => {
         console.error("Error getting global hourly heatmap:", error);
         res.status(500).json({
             message: "Error getting global hourly heatmap",
+            error: error.message,
+        });
+    }
+});
+
+// Platform language totals current vs previous period
+// Query params: period=day|week|month|1d|7d|30d (default 30d), limit
+app.get("/stats/global/languages", async (req, res) => {
+    const { period = "30d", limit } = req.query;
+    console.log(
+        `GET /stats/global/languages?period=${period}${
+            limit ? `&limit=${limit}` : ""
+        } endpoint hit`
+    );
+    try {
+        const data = await StatsService.getLanguageGrowth(
+            period,
+            limit ? parseInt(limit, 10) : undefined
+        );
+        res.status(200).json(data);
+    } catch (error) {
+        console.error("Error getting global language totals:", error);
+        res.status(500).json({
+            message: "Error getting global language totals",
             error: error.message,
         });
     }
