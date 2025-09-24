@@ -411,21 +411,77 @@ app.post("/coding-session", async (req, res) => {
         user.totalCodingTime += duration;
         console.log("Updated total coding time:", user.totalCodingTime);
 
-        // Streak logic
+        // Fixed Streak logic - timezone-aware calendar days
         if (lastSessionDate) {
-            const daysBetween = Math.floor(
-                (today - lastSessionDate) / (1000 * 60 * 60 * 24)
-            );
-            console.log("Days between sessions:", daysBetween);
+            // Helper function to convert date to user's timezone calendar date
+            const getLocalCalendarDate = (date, timezone) => {
+                try {
+                    // Convert to user's timezone and get just the date part
+                    const localDate = new Date(
+                        date.toLocaleString("en-US", { timeZone: timezone })
+                    );
+                    return new Date(
+                        localDate.getFullYear(),
+                        localDate.getMonth(),
+                        localDate.getDate()
+                    );
+                } catch (error) {
+                    console.warn(
+                        `Invalid timezone '${timezone}', falling back to UTC`
+                    );
+                    // Fallback to UTC if timezone is invalid
+                    return new Date(
+                        date.getUTCFullYear(),
+                        date.getUTCMonth(),
+                        date.getUTCDate()
+                    );
+                }
+            };
 
-            if (daysBetween === 1) {
+            // Use user's timezone or default to GMT+1
+            const userTimezone = user.timezone || "Europe/London"; // GMT+1 equivalent
+
+            // Convert both dates to user's local calendar dates
+            const todayLocalCalendar = getLocalCalendarDate(
+                today,
+                userTimezone
+            );
+            const lastSessionLocalCalendar = getLocalCalendarDate(
+                lastSessionDate,
+                userTimezone
+            );
+
+            const daysBetween = Math.floor(
+                (todayLocalCalendar - lastSessionLocalCalendar) /
+                    (1000 * 60 * 60 * 24)
+            );
+            console.log(
+                `Calendar days between sessions (${userTimezone}):`,
+                daysBetween
+            );
+
+            if (daysBetween === 0) {
+                // Same calendar day in user's timezone - no change to streak
+                console.log(
+                    "Same local calendar day session, streak unchanged:",
+                    user.currentStreak
+                );
+            } else if (daysBetween === 1) {
+                // Next calendar day in user's timezone - increment streak
                 user.currentStreak += 1;
-                console.log("Increased streak:", user.currentStreak);
-            } else if (daysBetween > 1) {
+                console.log(
+                    "Next local calendar day, increased streak:",
+                    user.currentStreak
+                );
+            } else if (daysBetween >= 2) {
+                // Gap of 2+ calendar days in user's timezone - reset streak to 1
                 user.currentStreak = 1;
-                console.log("Reset streak to 1");
+                console.log(
+                    "Local calendar day gap detected, reset streak to 1"
+                );
             }
         } else {
+            // First session ever - start streak at 1
             user.currentStreak = 1;
             console.log("First session, streak set to 1");
         }
