@@ -2104,35 +2104,34 @@ app.get("/stats/:userId/heatmap", async (req, res) => {
 // ----------------------------- //
 
 // * User Search Endpoint * //
-app.get("/users/search"),
-    async (req, res) => {
-        const { q, limit = 10 } = req.query;
-        if (!q || q.trim().length === 0) {
-            return res
-                .status(400)
-                .json({ message: "Query parameter 'q' is required" });
-        }
-        try {
-            const users = await User.find({
-                $or: [
-                    { username: new RegExp(q, "i") },
-                    { displayName: new RegExp(q, "i") },
-                ],
-            })
-                .limit(Math.min(parseInt(limit, 10), 50))
-                .select(
-                    "userId username displayName avatarUrl totalCodingTime currentStreak longestStreak"
-                )
-                .exec();
-            res.status(200).json({ users });
-        } catch (error) {
-            console.error("Error searching users:", error);
-            res.status(500).json({
-                message: "Error searching users",
-                error: error.message,
-            });
-        }
-    };
+app.get("/users/search", async (req, res) => {
+    const { q, limit = 10 } = req.query;
+    if (!q || q.trim().length === 0) {
+        return res
+            .status(400)
+            .json({ message: "Query parameter 'q' is required" });
+    }
+    try {
+        const users = await User.find({
+            $or: [
+                { username: new RegExp(q, "i") },
+                { displayName: new RegExp(q, "i") },
+            ],
+        })
+            .limit(Math.min(parseInt(limit, 10), 50))
+            .select(
+                "userId username displayName avatarUrl totalCodingTime currentStreak longestStreak"
+            )
+            .exec();
+        res.status(200).json({ users });
+    } catch (error) {
+        console.error("Error searching users:", error);
+        res.status(500).json({
+            message: "Error searching users",
+            error: error.message,
+        });
+    }
+});
 
 // ----------------------------- //
 
