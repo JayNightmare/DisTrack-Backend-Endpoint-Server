@@ -15,6 +15,19 @@ const userSchema = new mongoose.Schema(
         bio: { type: String, default: "", maxlength: 500 },
         socials: { type: Object, default: {} },
         // //
+        followers: { type: Number, default: 0 },
+        following: { type: Number, default: 0 },
+        // //
+        premium: { type: Boolean, default: false },
+        premiumSince: { type: Date, default: null },
+        sponsor: { type: String, default: false },
+        sponsorSince: { type: Date, default: null },
+        // //
+        // ! Will be used for habit tracking and goals
+        dailyCodingTime: { type: Number, default: 0 },
+        weeklyCodingTime: { type: Number, default: 0 },
+        monthlyCodingTime: { type: Number, default: 0 },
+        // //
         totalCodingTime: { type: Number, default: 0 },
         currentStreak: { type: Number, default: 0 },
         longestStreak: { type: Number, default: 0 },
