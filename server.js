@@ -714,26 +714,27 @@ app.get("/user-profile/:userId", async (req, res) => {
         }
 
         // Return the complete user profile data
-        const userProfile = {
-            userId: user.userId,
-            username: user.username,
-            displayName: user.displayName,
-            avatarUrl: user.avatarUrl,
-            discordId: user.discordId,
-            totalCodingTime: user.totalCodingTime,
-            currentStreak: user.currentStreak,
-            longestStreak: user.longestStreak,
-            lastSessionDate: user.lastSessionDate,
-            languages: user.languages,
-            isPublic: user.isPublic,
-            timezone: user.timezone,
-            bio: user.bio,
-            socials: user.socials || {},
-            linkedAt: user.linkedAt,
-            lastLinkedAt: user.lastLinkedAt,
-            createdAt: user.createdAt,
-            updatedAt: user.updatedAt,
-        };
+        // const userProfile = {
+        //     userId: user.userId,
+        //     username: user.username,
+        //     displayName: user.displayName,
+        //     avatarUrl: user.avatarUrl,
+        //     discordId: user.discordId,
+        //     totalCodingTime: user.totalCodingTime,
+        //     currentStreak: user.currentStreak,
+        //     longestStreak: user.longestStreak,
+        //     lastSessionDate: user.lastSessionDate,
+        //     languages: user.languages,
+        //     isPublic: user.isPublic,
+        //     timezone: user.timezone,
+        //     bio: user.bio,
+        //     socials: user.socials || {},
+        //     linkedAt: user.linkedAt,
+        //     lastLinkedAt: user.lastLinkedAt,
+        //     createdAt: user.createdAt,
+        //     updatedAt: user.updatedAt,
+        // };
+        const userProfile = user.toObject(); // Convert Mongoose document to plain object
 
         res.status(200).json(userProfile);
         console.log(`User profile for ${userId} retrieved successfully.`);
