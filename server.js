@@ -472,88 +472,143 @@ app.use((req, res, next) => {
 
 // * Enhanced Middleware for API key authentication with geo-location tracking
 async function authenticateApiKey(req, res, next) {
-    const authHeader = req.headers["authorization"];
-    const token = authHeader?.startsWith("Bearer ")
-        ? authHeader.split(" ")[1]
-        : authHeader;
-
+    const authHeader = req.headers["authorization"]?.trim();
     const clientIP = getClientIP(req);
 
     console.log("--------------------------");
     console.log("🔐 Auth check initiated...");
-    console.log("Expected:", API_KEY?.substring(0, 10) + "...");
-    console.log("Received:", token?.substring(0, 10) + "...");
     console.log("📍 Client IP:", clientIP);
+    console.log("🧾 Authorization header present:", Boolean(authHeader));
 
-    if (!token || token !== API_KEY) {
-        console.log("❌ Authentication FAILED! 🚫");
-        console.log(
-            "🎭 Someone's trying to be sneaky... but we caught them! 😏"
-        );
-        console.log("🔍 Investigating this suspicious character...");
-        console.log("🌐 Path attempted:", req.method, req.path);
-        console.log("🖥️  User-Agent:", req.headers["user-agent"] || "Unknown");
-
-        // Perform geo-location lookup if IP is valid
-        if (clientIP && clientIP !== "unknown" && !clientIP.startsWith("::")) {
-            try {
-                console.log("🌍 Performing geo-location lookup... 🔍");
-                const geoResponse = await axios.get(
-                    `http://ip-api.com/json/${clientIP}`,
-                    {
-                        timeout: 3000, // 3 second timeout
-                    }
-                );
-
-                if (geoResponse.data && geoResponse.data.status === "success") {
-                    const { city, region, country, isp, org } =
-                        geoResponse.data;
-                    console.log("🏙️  Location detected:");
-                    console.log(`   📍 City: ${city || "Unknown"}`);
-                    console.log(`   🏛️  Region: ${region || "Unknown"}`);
-                    console.log(`   🌍 Country: ${country || "Unknown"}`);
-                    console.log(`   🌐 ISP: ${isp || "Unknown"}`);
-                    console.log(`   🏢 Organization: ${org || "Unknown"}`);
-                    console.log(
-                        "🕵️  Well, well, well... look who we have here! 👀"
-                    );
-                    console.log(
-                        `🎪 A visitor from ${city}, ${country} using ${isp}!`
-                    );
-                    console.log(
-                        "🤡 Nice try, but you'll need the magic words! ✨"
-                    );
-                } else {
-                    console.log(
-                        "🤷 Geo-location lookup returned no data. Mysterious visitor! 👻"
-                    );
-                }
-            } catch (geoError) {
-                console.log("🚫 Geo-location lookup failed:", geoError.message);
-                console.log("🔮 This visitor remains a mystery... spooky! 👻");
-            }
-        } else {
-            console.log(
-                "🤖 Local or invalid IP detected. Probably a bot or local testing! 🧪"
-            );
-        }
-
-        console.log("🛡️  Access DENIED! I'm going to touch you  😈");
-        console.log("💡 Hint: You need a valid API key, not fairy dust! ✨");
-
-        return res.status(403).json({
-            message: "Forbidden: Invalid API Key",
-            hint: "🔑 You need the secret sauce! 🌶️",
+    if (!authHeader) {
+        return handleAuthFailure({
+            req,
+            res,
+            clientIP,
+            reason: "Missing authorization header",
         });
     }
 
-    // Success case
-    console.log("✅ Authentication SUCCESS! 🎉");
+    const isBearer = authHeader.toLowerCase().startsWith("bearer ");
+
+    if (isBearer) {
+        const bearerToken = authHeader.slice(7).trim();
+
+        if (!bearerToken) {
+            return handleAuthFailure({
+                req,
+                res,
+                clientIP,
+                reason: "Empty bearer token",
+            });
+        }
+
+        try {
+            const payload = verifySessionAccessToken(bearerToken);
+            const scopeValue = String(payload.scope || "").trim();
+            const scopes = scopeValue ? scopeValue.split(/\s+/) : [];
+
+            if (scopes.length && !scopes.includes(DEFAULT_SCOPE)) {
+                throw new Error(
+                    `Access token missing required scope '${DEFAULT_SCOPE}'`
+                );
+            }
+
+            req.sessionAccessToken = {
+                token: bearerToken,
+                payload,
+                scopes,
+            };
+
+            console.log("✅ Bearer token accepted for user:", payload.sub);
+            console.log("� Request approved for:", req.method, req.path);
+            return next();
+        } catch (error) {
+            return handleAuthFailure({
+                req,
+                res,
+                clientIP,
+                reason: `Invalid bearer token: ${error.message}`,
+            });
+        }
+    }
+
+    const keyCandidate = authHeader;
+    console.log("Expected API key prefix:", API_KEY?.substring(0, 10) + "...");
     console.log(
-        "🎊 Welcome back, authorized user! You have the magic touch! ✨"
+        "Provided API key prefix:",
+        keyCandidate?.substring(0, 10) + "..."
     );
+
+    if (!keyCandidate || keyCandidate !== API_KEY) {
+        return handleAuthFailure({
+            req,
+            res,
+            clientIP,
+            reason: "Invalid API key",
+        });
+    }
+
+    console.log("✅ API key accepted!");
     console.log("🚀 Request approved for:", req.method, req.path);
-    next();
+    return next();
+}
+
+async function handleAuthFailure({ req, res, clientIP, reason }) {
+    console.log("❌ Authentication FAILED! 🚫");
+    console.log("📄 Reason:", reason);
+    console.log("🎭 Someone's trying to be sneaky... but we caught them! 😏");
+    console.log("🔍 Investigating this suspicious character...");
+    console.log("🌐 Path attempted:", req.method, req.path);
+    console.log("🖥️  User-Agent:", req.headers["user-agent"] || "Unknown");
+
+    if (clientIP && clientIP !== "unknown" && !clientIP.startsWith("::")) {
+        try {
+            console.log("🌍 Performing geo-location lookup... 🔍");
+            const geoResponse = await axios.get(
+                `http://ip-api.com/json/${clientIP}`,
+                {
+                    timeout: 3000,
+                }
+            );
+
+            if (geoResponse.data && geoResponse.data.status === "success") {
+                const { city, region, country, isp, org } = geoResponse.data;
+                console.log("🏙️  Location detected:");
+                console.log(`   📍 City: ${city || "Unknown"}`);
+                console.log(`   🏛️  Region: ${region || "Unknown"}`);
+                console.log(`   🌍 Country: ${country || "Unknown"}`);
+                console.log(`   🌐 ISP: ${isp || "Unknown"}`);
+                console.log(`   🏢 Organization: ${org || "Unknown"}`);
+                console.log(
+                    "🕵️  Well, well, well... look who we have here! 👀"
+                );
+                console.log(
+                    `🎪 A visitor from ${city}, ${country} using ${isp}!`
+                );
+                console.log("🤡 Nice try, but you'll need the magic words! ✨");
+            } else {
+                console.log(
+                    "🤷 Geo-location lookup returned no data. Mysterious visitor! 👻"
+                );
+            }
+        } catch (geoError) {
+            console.log("🚫 Geo-location lookup failed:", geoError.message);
+            console.log("🔮 This visitor remains a mystery... spooky! 👻");
+        }
+    } else {
+        console.log(
+            "🤖 Local or invalid IP detected. Probably a bot or local testing! 🧪"
+        );
+    }
+
+    console.log("🛡️  Access DENIED! I'm going to touch you  😈");
+    console.log("💡 Hint: You need a valid API key or bearer token! ✨");
+
+    return res.status(403).json({
+        message: "Forbidden: Invalid credentials",
+        hint: "🔑 Present a valid API key or access token.",
+    });
 }
 
 app.use((req, res, next) => {
