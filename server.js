@@ -1563,9 +1563,7 @@ app.post("/v1/link/finish", async (req, res) => {
         }
 
         if (session.status === LINK_SESSION_STATUS.COMPLETED) {
-            return res
-                .status(409)
-                .json({ message: "Link already completed" });
+            return res.status(409).json({ message: "Link already completed" });
         }
 
         const user = await User.findOne({ userId: session.userId }).exec();
@@ -1634,8 +1632,11 @@ app.post("/v1/auth/refresh", async (req, res) => {
         const ipHash = hashIp(clientIP);
         const userAgent = req.headers["user-agent"] || null;
 
-        const { accessToken, refreshToken: rotatedToken, expiresIn } =
-            await rotateRefreshToken(tokenDoc, { ipHash, userAgent });
+        const {
+            accessToken,
+            refreshToken: rotatedToken,
+            expiresIn,
+        } = await rotateRefreshToken(tokenDoc, { ipHash, userAgent });
 
         return res.status(200).json({
             access_token: accessToken,
@@ -1667,10 +1668,7 @@ app.post("/v1/sessions", async (req, res) => {
         const scopeHasWriteSessions = Array.isArray(scope)
             ? scope.includes(DEFAULT_SCOPE)
             : typeof scope === "string" &&
-              scope
-                  .split(/\s+/)
-                  .filter(Boolean)
-                  .includes(DEFAULT_SCOPE);
+              scope.split(/\s+/).filter(Boolean).includes(DEFAULT_SCOPE);
 
         if (!scopeHasWriteSessions) {
             return res.status(403).json({ message: "Insufficient scope" });
@@ -1704,9 +1702,7 @@ app.post("/v1/sessions", async (req, res) => {
         }
 
         if (!startedAt) {
-            return res
-                .status(400)
-                .json({ message: "started_at is required" });
+            return res.status(400).json({ message: "started_at is required" });
         }
 
         if (!durationSeconds) {

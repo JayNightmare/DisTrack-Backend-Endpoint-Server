@@ -7,8 +7,7 @@ module.exports = {
     DISCORD_CLIENT_ID: process.env.DISCORD_CLIENT_ID,
     DISCORD_CLIENT_SECRET: process.env.DISCORD_CLIENT_SECRET,
     DISCORD_CALLBACK_URL:
-        process.env.DISCORD_CALLBACK_URL ||
-        "url to discord auth call back",
+        process.env.DISCORD_CALLBACK_URL || "url to discord auth call back",
     JWT_SECRET: process.env.JWT_SECRET || "your-jwt-secret-key",
     SESSION_SECRET: process.env.SESSION_SECRET || "your-session-secret-key",
     JWT_AUDIENCE: process.env.JWT_AUDIENCE || "distrack.api",
@@ -33,9 +32,7 @@ module.exports = {
         process.env.SESSION_DAILY_LIMIT_PER_USER || "720",
         10
     ),
-    LINK_WEBHOOK_URL:
-        process.env.LINK_WEBHOOK_URL ||
-        "webhook.link",
+    LINK_WEBHOOK_URL: process.env.LINK_WEBHOOK_URL || "webhook.link",
     LINK_CODE_LENGTH: 6,
     LINK_CODE_RATE_LIMIT_WINDOW_MS: 300000, // 5 minutes
     LINK_CODE_RATE_LIMIT_MAX: 5,

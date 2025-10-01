@@ -19,7 +19,7 @@ const linkSessionSchema = new mongoose.Schema(
             index: true,
         },
         userId: { type: String, default: null, index: true },
-    expiresAt: { type: Date, required: true },
+        expiresAt: { type: Date, required: true },
         completedAt: { type: Date, default: null },
         metadata: {
             ipHash: { type: String, default: null },
