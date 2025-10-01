@@ -26,6 +26,7 @@ This is the backend server for the DisTrack Discord bot and VSCode extension int
   - [Core Endpoints](#core-endpoints)
   - [POST `/coding-session`](#post-coding-session)
   - [POST `/link`](#post-link)
+  - [Device Authorization Flow (`/v1/*`)](#device-authorization-flow-v1)
   - [Leaderboard Endpoints](#leaderboard-endpoints)
   - [GET `/leaderboard/:timeframe`](#get-leaderboardtimeframe)
   - [POST `/snapshot/:timeframe`](#post-snapshottimeframe)
@@ -126,6 +127,37 @@ The DisTrack Endpoint Server collects coding session data from the DisTrack VSCo
     "userId": "123456789012345678"
   }
   ```
+
+### Device Authorization Flow (`/v1/*`)
+
+These endpoints power the extension's device authorization and token lifecycle. All responses use JSON.
+
+| Endpoint | Description |
+| --- | --- |
+| `POST /v1/link/start` | Start a device link by providing a `device_id`. Returns a one-time `code`, `poll_token`, and expiry. |
+| `POST /v1/link/claim` | Called by the web app when a signed-in user enters a code. Associates the pending link with the user. |
+| `POST /v1/link/finish` | The extension polls this endpoint with `{ device_id, poll_token }` to receive an access token (`JWT`) and refresh token once the link is authorized. |
+| `POST /v1/auth/refresh` | Rotate refresh tokens. Input `{ device_id, refresh_token }`. Returns a fresh access/refresh pair. |
+| `POST /v1/sessions` | Submit sessions with `Authorization: Bearer <access_token>`. Requires a `session_id` for idempotency. Returns `{ session_id, created }`.
+
+#### `/v1/sessions` payload
+
+```json
+{
+  "session_id": "uuid",
+  "started_at": "2025-10-01T12:00:00Z",
+  "duration_sec": 1234,
+  "project": "my-repo",
+  "editor": "vscode",
+  "extension_version": "x.y.z",
+  "languages": {
+    "javascript": 600,
+    "typescript": 300
+  }
+}
+```
+
+Clients exceeding 60 posts/minute per device receive `429`. Duplicate `session_id` submissions return `200` with `created: false`.
 
 ### Leaderboard Endpoints
 

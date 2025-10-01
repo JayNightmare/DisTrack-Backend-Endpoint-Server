@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "test-trends": "node test-trends.js",
-    "test-sessions": "node test-session-integration.js"
+    "test-sessions": "node test-session-integration.js",
+    "test-auth": "node scripts/test-token-service.js"
   },
   "dependencies": {
     "axios": "^1.11.0",

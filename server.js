@@ -1,9 +1,12 @@
 const express = require("express");
 const path = require("path");
+const crypto = require("crypto");
 const app = express();
 const { connectToDatabase } = require("./database.js");
 const PORT = 7071;
 const User = require("./User.js");
+const Device = require("./Device.js");
+const LinkSession = require("./LinkSession.js");
 const CodingSession = require("./CodingSession.js");
 const LeaderboardService = require("./LeaderboardService.js");
 const StatsService = require("./StatsService.js");
@@ -17,6 +20,15 @@ const DiscordStrategy = require("passport-discord").Strategy;
 const session = require("express-session");
 const jwt = require("jsonwebtoken");
 const {
+    issueTokenPair,
+    verifyAccessToken: verifySessionAccessToken,
+    findValidRefreshToken,
+    rotateRefreshToken,
+    hashValue,
+    getAccessTokenTtlSeconds,
+    DEFAULT_SCOPE,
+} = require("./tokenService.js");
+const {
     API_KEY,
     DISCORD_CLIENT_ID,
     DISCORD_CLIENT_SECRET,
@@ -29,8 +41,245 @@ const {
     EXTENSION_LINK_MAX_FAILURES,
     EXTENSION_LINK_FAILURE_WINDOW_MS,
     EXTENSION_LINK_LOCKOUT_MS,
+    LINK_CODE_EXPIRES_IN_SECONDS,
+    SESSION_BURST_LIMIT_PER_MINUTE,
+    SESSION_DAILY_LIMIT_PER_USER,
     LINK_WEBHOOK_URL,
 } = require("./config.js");
+const LINK_SESSION_STATUS = LinkSession.STATUS;
+
+function getClientIP(req) {
+    return (
+        req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
+        req.headers["x-real-ip"] ||
+        req.connection?.remoteAddress ||
+        req.socket?.remoteAddress ||
+        req.ip ||
+        "unknown"
+    );
+}
+
+function hashIp(ip) {
+    if (!ip || ip === "unknown") return null;
+    return hashValue(ip);
+}
+
+const sessionRateLimitWindowMs = 60 * 1000;
+const sessionRateTracker = new Map();
+const sessionDailyTracker = new Map();
+const LINK_CODE_EXPIRY_SECONDS = LINK_CODE_EXPIRES_IN_SECONDS || 600;
+
+function normalizeDeviceId(deviceId) {
+    if (!deviceId) return null;
+    return String(deviceId).trim();
+}
+
+function getBearerToken(req) {
+    const authHeader = req.headers["authorization"];
+    if (!authHeader || !authHeader.toLowerCase().startsWith("bearer ")) {
+        return null;
+    }
+    return authHeader.slice(7).trim();
+}
+
+function isBurstLimited(deviceId) {
+    if (!deviceId) return false;
+    const now = Date.now();
+    const windowStart = now - sessionRateLimitWindowMs;
+    const timestamps = (sessionRateTracker.get(deviceId) || []).filter(
+        (ts) => ts >= windowStart
+    );
+
+    if (timestamps.length >= SESSION_BURST_LIMIT_PER_MINUTE) {
+        sessionRateTracker.set(deviceId, timestamps);
+        return true;
+    }
+
+    timestamps.push(now);
+    sessionRateTracker.set(deviceId, timestamps);
+    return false;
+}
+
+function getDailyTrackerEntry(userId) {
+    if (!userId) return null;
+    const todayKey = new Date().toISOString().slice(0, 10);
+    const trackerKey = `${userId}:${todayKey}`;
+    let entry = sessionDailyTracker.get(trackerKey);
+
+    if (!entry || entry.day !== todayKey) {
+        entry = { count: 0, day: todayKey };
+        sessionDailyTracker.set(trackerKey, entry);
+    }
+
+    return { entry, trackerKey };
+}
+
+function hasReachedDailyLimit(userId) {
+    const data = getDailyTrackerEntry(userId);
+    if (!data) return false;
+    return data.entry.count >= SESSION_DAILY_LIMIT_PER_USER;
+}
+
+function incrementDailyUsage(userId) {
+    const data = getDailyTrackerEntry(userId);
+    if (!data) return;
+    data.entry.count += 1;
+    sessionDailyTracker.set(data.trackerKey, data.entry);
+}
+
+async function recordSessionForUser({
+    userId,
+    sessionId,
+    duration,
+    sessionStart,
+    languages = {},
+    projectName = null,
+    filePaths = [],
+    usernameFallback = "Anonymous",
+    deviceId = null,
+    ipHash = null,
+    userAgent = null,
+    editor = null,
+    extensionVersion = null,
+}) {
+    if (!userId) {
+        throw new Error("userId is required");
+    }
+
+    const durationSeconds = Number(duration);
+    if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+        throw new Error("duration must be a positive number of seconds");
+    }
+
+    const sessionStartTime = new Date(sessionStart);
+    if (Number.isNaN(sessionStartTime.getTime())) {
+        throw new Error("sessionStart must be a valid date");
+    }
+
+    const sessionEndTime = new Date(
+        sessionStartTime.getTime() + durationSeconds * 1000
+    );
+    const normalizedSessionDate = new Date(
+        sessionStartTime.getFullYear(),
+        sessionStartTime.getMonth(),
+        sessionStartTime.getDate()
+    );
+
+    let user = await User.findOne({ userId }).exec();
+    if (!user) {
+        user = new User({
+            userId,
+            username: usernameFallback || "Anonymous",
+            displayName: usernameFallback || "Anonymous",
+            linkedAt: new Date(),
+            lastLinkedAt: new Date(),
+        });
+    }
+
+    if (sessionId) {
+        const existingSession = await CodingSession.findOne({
+            sessionId,
+        }).exec();
+        if (existingSession) {
+            return { created: false, session: existingSession, user };
+        }
+    }
+
+    const lastSessionDate = user.lastSessionDate
+        ? new Date(user.lastSessionDate)
+        : null;
+
+    user.totalCodingTime += durationSeconds;
+
+    if (lastSessionDate) {
+        const getLocalCalendarDate = (date, timezone) => {
+            try {
+                const localDate = new Date(
+                    date.toLocaleString("en-US", { timeZone: timezone })
+                );
+                return new Date(
+                    localDate.getFullYear(),
+                    localDate.getMonth(),
+                    localDate.getDate()
+                );
+            } catch (error) {
+                console.warn(
+                    `Invalid timezone '${timezone}', falling back to UTC`
+                );
+                return new Date(
+                    date.getUTCFullYear(),
+                    date.getUTCMonth(),
+                    date.getUTCDate()
+                );
+            }
+        };
+
+        const userTimezone = user.timezone || "Europe/London";
+        const todayLocalCalendar = getLocalCalendarDate(
+            sessionStartTime,
+            userTimezone
+        );
+        const lastSessionLocalCalendar = getLocalCalendarDate(
+            lastSessionDate,
+            userTimezone
+        );
+
+        const daysBetween = Math.floor(
+            (todayLocalCalendar - lastSessionLocalCalendar) /
+                (1000 * 60 * 60 * 24)
+        );
+
+        if (daysBetween === 0) {
+            // same day; streak unchanged
+        } else if (daysBetween === 1) {
+            user.currentStreak += 1;
+        } else if (daysBetween >= 2) {
+            user.currentStreak = 1;
+        }
+    } else {
+        user.currentStreak = 1;
+    }
+
+    if (user.currentStreak > user.longestStreak) {
+        user.longestStreak = user.currentStreak;
+    }
+
+    user.lastSessionDate = sessionStartTime;
+
+    const languagesEntries = Object.entries(languages || {});
+    for (const [lang, value] of languagesEntries) {
+        if (
+            Object.prototype.hasOwnProperty.call(user.languages, lang) &&
+            Number.isFinite(value) &&
+            value > 0
+        ) {
+            user.languages[lang] += value;
+        }
+    }
+
+    const newSession = new CodingSession({
+        sessionId: sessionId || undefined,
+        userId: user.userId,
+        username: user.username || usernameFallback || "Anonymous",
+        startTime: sessionStartTime,
+        endTime: sessionEndTime,
+        duration: durationSeconds,
+        languages: languages || {},
+        sessionDate: normalizedSessionDate,
+        projectName: projectName || null,
+        filePaths: Array.isArray(filePaths) ? filePaths : [],
+        deviceId: deviceId || null,
+        ipHash: ipHash || null,
+        userAgent: userAgent || null,
+        editor: editor || null,
+        extensionVersion: extensionVersion || null,
+    });
+
+    await newSession.save();
+    await user.save();
+
+    return { created: true, session: newSession, user };
+}
 
 app.use(express.json());
 
@@ -228,18 +477,6 @@ async function authenticateApiKey(req, res, next) {
         ? authHeader.split(" ")[1]
         : authHeader;
 
-    // Get client IP address (considering proxies)
-    const getClientIP = (req) => {
-        return (
-            req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
-            req.headers["x-real-ip"] ||
-            req.connection?.remoteAddress ||
-            req.socket?.remoteAddress ||
-            req.ip ||
-            "unknown"
-        );
-    };
-
     const clientIP = getClientIP(req);
 
     console.log("--------------------------");
@@ -340,13 +577,16 @@ app.use((req, res, next) => {
     const isPublicEndpoint =
         publicEndpoints.includes(req.path) && req.method === "GET";
 
+    const isV1Endpoint = req.path.startsWith("/v1/");
+
     if (
         isPublicEndpoint ||
         isPublicLeaderboard ||
         isPublicStats ||
         isDiscordOAuth ||
         isPublicBotSharable ||
-        isPublicGlobalStats
+        isPublicGlobalStats ||
+        isV1Endpoint
     ) {
         console.log("Public endpoint accessed:", req.method, req.path);
         return next();
@@ -380,7 +620,7 @@ app.get("/health", (req, res) => {
 // * Record the coding session
 app.post("/coding-session", async (req, res) => {
     console.log("Received coding session request:", req.body);
-    const { userId, duration, sessionDate, languages } = req.body;
+    const { userId, duration, sessionDate, languages, sessionId } = req.body;
 
     if (!userId || !duration || !sessionDate) {
         console.log("Missing required fields:", {
@@ -392,153 +632,22 @@ app.post("/coding-session", async (req, res) => {
     }
 
     try {
-        let user = await User.findOne({ userId });
-        console.log("User found:", user);
-        const today = new Date(sessionDate);
-
-        // If user doesn't exist, create a new document
-        if (!user) {
-            console.log("Creating new user:", userId);
-            user = new User({ userId });
-        }
-
-        const lastSessionDate = user.lastSessionDate
-            ? new Date(user.lastSessionDate)
-            : null;
-        console.log("Last session date:", lastSessionDate);
-
-        // Update total coding time
-        user.totalCodingTime += duration;
-        console.log("Updated total coding time:", user.totalCodingTime);
-
-        // Fixed Streak logic - timezone-aware calendar days
-        if (lastSessionDate) {
-            // Helper function to convert date to user's timezone calendar date
-            const getLocalCalendarDate = (date, timezone) => {
-                try {
-                    // Convert to user's timezone and get just the date part
-                    const localDate = new Date(
-                        date.toLocaleString("en-US", { timeZone: timezone })
-                    );
-                    return new Date(
-                        localDate.getFullYear(),
-                        localDate.getMonth(),
-                        localDate.getDate()
-                    );
-                } catch (error) {
-                    console.warn(
-                        `Invalid timezone '${timezone}', falling back to UTC`
-                    );
-                    // Fallback to UTC if timezone is invalid
-                    return new Date(
-                        date.getUTCFullYear(),
-                        date.getUTCMonth(),
-                        date.getUTCDate()
-                    );
-                }
-            };
-
-            // Use user's timezone or default to GMT+1
-            const userTimezone = user.timezone || "Europe/London"; // GMT+1 equivalent
-
-            // Convert both dates to user's local calendar dates
-            const todayLocalCalendar = getLocalCalendarDate(
-                today,
-                userTimezone
-            );
-            const lastSessionLocalCalendar = getLocalCalendarDate(
-                lastSessionDate,
-                userTimezone
-            );
-
-            const daysBetween = Math.floor(
-                (todayLocalCalendar - lastSessionLocalCalendar) /
-                    (1000 * 60 * 60 * 24)
-            );
-            console.log(
-                `Calendar days between sessions (${userTimezone}):`,
-                daysBetween
-            );
-
-            if (daysBetween === 0) {
-                // Same calendar day in user's timezone - no change to streak
-                console.log(
-                    "Same local calendar day session, streak unchanged:",
-                    user.currentStreak
-                );
-            } else if (daysBetween === 1) {
-                // Next calendar day in user's timezone - increment streak
-                user.currentStreak += 1;
-                console.log(
-                    "Next local calendar day, increased streak:",
-                    user.currentStreak
-                );
-            } else if (daysBetween >= 2) {
-                // Gap of 2+ calendar days in user's timezone - reset streak to 1
-                user.currentStreak = 1;
-                console.log(
-                    "Local calendar day gap detected, reset streak to 1"
-                );
-            }
-        } else {
-            // First session ever - start streak at 1
-            user.currentStreak = 1;
-            console.log("First session, streak set to 1");
-        }
-
-        // Update longest streak if the current streak exceeds it
-        if (user.currentStreak > user.longestStreak) {
-            user.longestStreak = user.currentStreak;
-            console.log("Updated longest streak:", user.longestStreak);
-        }
-
-        // Update last session date
-        user.lastSessionDate = today;
-        console.log("Updated last session date:", user.lastSessionDate);
-
-        // Update language-specific coding time
-        for (const lang in languages) {
-            if (
-                languages.hasOwnProperty(lang) &&
-                user.languages.hasOwnProperty(lang)
-            ) {
-                user.languages[lang] += languages[lang];
-                console.log(`Updated ${lang} time:`, user.languages[lang]);
-            }
-        }
-
-        // Create new coding session record
-        const sessionStartTime = new Date(sessionDate);
-        const sessionEndTime = new Date(
-            sessionStartTime.getTime() + duration * 1000
-        );
-        const normalizedSessionDate = new Date(
-            sessionStartTime.getFullYear(),
-            sessionStartTime.getMonth(),
-            sessionStartTime.getDate()
-        );
-
-        const newSession = new CodingSession({
-            userId: user.userId,
-            username: user.username || "Anonymous",
-            startTime: sessionStartTime,
-            endTime: sessionEndTime,
-            duration: duration,
-            languages: languages || {},
-            sessionDate: normalizedSessionDate,
+        const { created } = await recordSessionForUser({
+            userId,
+            sessionId,
+            duration,
+            sessionStart: sessionDate,
+            languages,
             projectName: req.body.projectName || null,
             filePaths: req.body.filePaths || [],
+            usernameFallback: req.body.username || "Anonymous",
         });
 
-        // Save the session record
-        await newSession.save();
-        console.log("Coding session saved successfully");
-
-        // Save the updated user document
-        await user.save();
-        console.log("User saved successfully");
-
-        res.status(200).json({ message: "Session recorded successfully!" });
+        res.status(200).json({
+            message: created
+                ? "Session recorded successfully!"
+                : "Session already recorded",
+        });
     } catch (error) {
         console.error("Error recording session:", error);
         return res.status(500).json({ message: "Error recording session" });
@@ -1302,6 +1411,401 @@ app.post("/auth/verify-token", async (req, res) => {
     }
 });
 
+// ---------------- v1 Device Link Flow ---------------- //
+
+app.post("/v1/link/start", async (req, res) => {
+    try {
+        const { device_id: deviceIdRaw } = req.body || {};
+        const deviceId = normalizeDeviceId(deviceIdRaw);
+
+        if (!deviceId) {
+            return res.status(400).json({
+                message: "device_id is required",
+            });
+        }
+
+        const clientIP = getClientIP(req);
+        const ipHash = hashIp(clientIP);
+        const userAgent = req.headers["user-agent"] || null;
+
+        await LinkSession.deleteMany({
+            deviceId,
+            status: {
+                $in: [
+                    LINK_SESSION_STATUS.PENDING,
+                    LINK_SESSION_STATUS.AUTHORIZED,
+                ],
+            },
+        });
+
+        const code = generateLinkCode();
+        const pollToken = crypto.randomBytes(32).toString("base64url");
+
+        const session = new LinkSession({
+            deviceId,
+            codeHash: hashValue(code),
+            pollTokenHash: hashValue(pollToken),
+            expiresAt: new Date(Date.now() + LINK_CODE_EXPIRY_SECONDS * 1000),
+            metadata: {
+                ipHash,
+                userAgent,
+            },
+        });
+
+        await session.save();
+
+        return res.status(200).json({
+            code,
+            poll_token: pollToken,
+            expires_in: LINK_CODE_EXPIRY_SECONDS,
+        });
+    } catch (error) {
+        console.error("Error creating link session:", error);
+        return res.status(500).json({
+            message: "Failed to start link session",
+        });
+    }
+});
+
+app.post("/v1/link/claim", async (req, res) => {
+    try {
+        const { code, user_id: userId } = req.body || {};
+
+        if (!code || !userId) {
+            return res.status(400).json({
+                message: "code and user_id are required",
+            });
+        }
+
+        const normalizedCode = String(code).trim().toUpperCase();
+        const codeHash = hashValue(normalizedCode);
+        const session = await LinkSession.findOne({ codeHash }).exec();
+
+        if (!session) {
+            return res.status(404).json({ message: "Link code not found" });
+        }
+
+        if (session.expiresAt <= new Date()) {
+            if (session.status !== LINK_SESSION_STATUS.EXPIRED) {
+                session.status = LINK_SESSION_STATUS.EXPIRED;
+                await session.save();
+            }
+            return res.status(410).json({ message: "Link code expired" });
+        }
+
+        if (session.status === LINK_SESSION_STATUS.COMPLETED) {
+            return res.status(409).json({ message: "Link already completed" });
+        }
+
+        const user = await User.findOne({ userId }).exec();
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        session.userId = user.userId;
+        session.status = LINK_SESSION_STATUS.AUTHORIZED;
+        session.metadata = session.metadata || {};
+        session.metadata.ipHash = hashIp(getClientIP(req));
+        session.metadata.userAgent =
+            req.headers["user-agent"] || session.metadata.userAgent || null;
+        await session.save();
+
+        user.extensionLinked = true;
+        user.lastLinkedAt = new Date();
+        await user.save();
+
+        return res.status(200).json({
+            success: true,
+            device_id: session.deviceId,
+        });
+    } catch (error) {
+        console.error("Error claiming link code:", error);
+        return res.status(500).json({
+            message: "Failed to claim link code",
+        });
+    }
+});
+
+app.post("/v1/link/finish", async (req, res) => {
+    try {
+        const { device_id: deviceIdRaw, poll_token: pollTokenRaw } =
+            req.body || {};
+
+        const deviceId = normalizeDeviceId(deviceIdRaw);
+        const pollToken = pollTokenRaw ? String(pollTokenRaw).trim() : null;
+
+        if (!deviceId || !pollToken) {
+            return res.status(400).json({
+                message: "device_id and poll_token are required",
+            });
+        }
+
+        const pollTokenHash = hashValue(pollToken);
+        const session = await LinkSession.findOne({
+            deviceId,
+            pollTokenHash,
+        }).exec();
+
+        if (!session) {
+            return res.status(404).json({ message: "Link session not found" });
+        }
+
+        if (session.expiresAt <= new Date()) {
+            if (session.status !== LINK_SESSION_STATUS.EXPIRED) {
+                session.status = LINK_SESSION_STATUS.EXPIRED;
+                await session.save();
+            }
+            return res.status(410).json({ message: "Link session expired" });
+        }
+
+        if (!session.userId || session.status === LINK_SESSION_STATUS.PENDING) {
+            return res.status(202).json({ status: "pending" });
+        }
+
+        if (session.status === LINK_SESSION_STATUS.COMPLETED) {
+            return res
+                .status(409)
+                .json({ message: "Link already completed" });
+        }
+
+        const user = await User.findOne({ userId: session.userId }).exec();
+        if (!user) {
+            await LinkSession.deleteOne({ _id: session._id });
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        const clientIP = getClientIP(req);
+        const ipHash = hashIp(clientIP);
+        const userAgent = req.headers["user-agent"] || null;
+
+        const { accessToken, refreshToken, expiresIn } = await issueTokenPair({
+            userId: user.userId,
+            deviceId,
+            ipHash,
+            userAgent,
+        });
+
+        session.status = LINK_SESSION_STATUS.COMPLETED;
+        session.completedAt = new Date();
+        session.metadata = session.metadata || {};
+        session.metadata.ipHash = session.metadata.ipHash || ipHash;
+        session.metadata.userAgent = session.metadata.userAgent || userAgent;
+        await session.save();
+
+        user.extensionLinked = true;
+        user.lastLinkedAt = new Date();
+        await user.save();
+
+        return res.status(200).json({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+            expires_in: expiresIn,
+        });
+    } catch (error) {
+        console.error("Error finishing link session:", error);
+        return res.status(500).json({
+            message: "Failed to complete link session",
+        });
+    }
+});
+
+app.post("/v1/auth/refresh", async (req, res) => {
+    try {
+        const { device_id: deviceIdRaw, refresh_token: refreshTokenRaw } =
+            req.body || {};
+
+        const deviceId = normalizeDeviceId(deviceIdRaw);
+        const refreshToken = refreshTokenRaw
+            ? String(refreshTokenRaw).trim()
+            : null;
+
+        if (!deviceId || !refreshToken) {
+            return res.status(400).json({
+                message: "device_id and refresh_token are required",
+            });
+        }
+
+        const tokenDoc = await findValidRefreshToken(deviceId, refreshToken);
+        if (!tokenDoc) {
+            return res.status(401).json({ message: "Invalid refresh token" });
+        }
+
+        const clientIP = getClientIP(req);
+        const ipHash = hashIp(clientIP);
+        const userAgent = req.headers["user-agent"] || null;
+
+        const { accessToken, refreshToken: rotatedToken, expiresIn } =
+            await rotateRefreshToken(tokenDoc, { ipHash, userAgent });
+
+        return res.status(200).json({
+            access_token: accessToken,
+            refresh_token: rotatedToken,
+            expires_in: expiresIn,
+        });
+    } catch (error) {
+        console.error("Error refreshing token:", error);
+        return res.status(500).json({ message: "Failed to refresh token" });
+    }
+});
+
+app.post("/v1/sessions", async (req, res) => {
+    try {
+        const bearer = getBearerToken(req);
+        if (!bearer) {
+            return res.status(401).json({ message: "Missing access token" });
+        }
+
+        let tokenPayload;
+        try {
+            tokenPayload = verifySessionAccessToken(bearer);
+        } catch (error) {
+            console.warn("Access token verification failed:", error.message);
+            return res.status(401).json({ message: "Invalid access token" });
+        }
+
+        const scope = tokenPayload.scope;
+        const scopeHasWriteSessions = Array.isArray(scope)
+            ? scope.includes(DEFAULT_SCOPE)
+            : typeof scope === "string" &&
+              scope
+                  .split(/\s+/)
+                  .filter(Boolean)
+                  .includes(DEFAULT_SCOPE);
+
+        if (!scopeHasWriteSessions) {
+            return res.status(403).json({ message: "Insufficient scope" });
+        }
+
+        const userId = tokenPayload.sub;
+        const deviceId = normalizeDeviceId(tokenPayload.device_id);
+
+        if (!userId || !deviceId) {
+            return res.status(401).json({ message: "Invalid token claims" });
+        }
+
+        const {
+            session_id: sessionIdRaw,
+            started_at: startedAt,
+            duration_sec: durationSeconds,
+            languages,
+            project,
+            editor,
+            extension_version,
+            file_paths,
+            filePaths,
+        } = req.body || {};
+
+        const sessionId = sessionIdRaw ? String(sessionIdRaw).trim() : null;
+
+        if (!sessionId) {
+            return res
+                .status(400)
+                .json({ message: "session_id is required for idempotency" });
+        }
+
+        if (!startedAt) {
+            return res
+                .status(400)
+                .json({ message: "started_at is required" });
+        }
+
+        if (!durationSeconds) {
+            return res
+                .status(400)
+                .json({ message: "duration_sec is required" });
+        }
+
+        const existingSession = await CodingSession.findOne({
+            sessionId,
+        }).exec();
+
+        if (existingSession) {
+            if (existingSession.userId !== userId) {
+                return res.status(409).json({
+                    message: "session_id already used by another user",
+                });
+            }
+
+            await Device.findOneAndUpdate(
+                { deviceId },
+                {
+                    lastSeenAt: new Date(),
+                    lastIpHash: hashIp(getClientIP(req)) || undefined,
+                    userAgent: req.headers["user-agent"] || undefined,
+                },
+                { new: true, upsert: false }
+            ).exec();
+
+            return res.status(200).json({
+                session_id: existingSession.sessionId,
+                created: false,
+            });
+        }
+
+        if (isBurstLimited(deviceId)) {
+            return res.status(429).json({
+                message: "Rate limit exceeded for device",
+            });
+        }
+
+        if (hasReachedDailyLimit(userId)) {
+            return res.status(429).json({
+                message: "Daily session cap reached",
+            });
+        }
+
+        const clientIP = getClientIP(req);
+        const ipHash = hashIp(clientIP);
+        const userAgent = req.headers["user-agent"] || null;
+
+        const result = await recordSessionForUser({
+            userId,
+            sessionId,
+            duration: durationSeconds,
+            sessionStart: startedAt,
+            languages,
+            projectName: project || null,
+            filePaths: file_paths || filePaths || [],
+            usernameFallback: tokenPayload.username || userId,
+            deviceId,
+            ipHash,
+            userAgent,
+            editor: editor || null,
+            extensionVersion: extension_version || null,
+        });
+
+        if (result.created) {
+            incrementDailyUsage(userId);
+        }
+
+        await Device.findOneAndUpdate(
+            { deviceId },
+            {
+                userId,
+                lastSeenAt: new Date(),
+                lastIpHash: ipHash || undefined,
+                userAgent: userAgent || undefined,
+            },
+            { new: true, upsert: true, setDefaultsOnInsert: true }
+        ).exec();
+
+        return res.status(result.created ? 201 : 200).json({
+            session_id: result.session.sessionId || sessionId,
+            created: result.created,
+        });
+    } catch (error) {
+        console.error("Error handling /v1/sessions:", error);
+        if (
+            error.message &&
+            (error.message.includes("required") ||
+                error.message.includes("valid"))
+        ) {
+            return res.status(400).json({ message: error.message });
+        }
+        return res.status(500).json({ message: "Failed to record session" });
+    }
+});
+
 // ---------------- Link Code & Extension Endpoints ---------------- //
 
 // Helper to generate a 6-character alphanumeric code (uppercase letters & digits)
@@ -1310,7 +1814,8 @@ function generateLinkCode() {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // exclude ambiguous chars
     let code = "";
     for (let i = 0; i < length; i++) {
-        code += chars.charAt(Math.floor(Math.random() * chars.length));
+        const idx = crypto.randomInt(0, chars.length);
+        code += chars.charAt(idx);
     }
     return code;
 }
