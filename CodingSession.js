@@ -2,6 +2,12 @@ const mongoose = require("mongoose");
 
 const codingSessionSchema = new mongoose.Schema(
     {
+        sessionId: {
+            type: String,
+            index: true,
+            unique: true,
+            sparse: true,
+        },
         userId: {
             type: String,
             required: true,
@@ -23,6 +29,27 @@ const codingSessionSchema = new mongoose.Schema(
             type: Number,
             required: true,
             min: 0, // Duration in seconds
+        },
+        deviceId: {
+            type: String,
+            default: null,
+            index: true,
+        },
+        ipHash: {
+            type: String,
+            default: null,
+        },
+        userAgent: {
+            type: String,
+            default: null,
+        },
+        editor: {
+            type: String,
+            default: null,
+        },
+        extensionVersion: {
+            type: String,
+            default: null,
         },
         languages: {
             javascript: { type: Number, default: 0 },
@@ -76,6 +103,7 @@ const codingSessionSchema = new mongoose.Schema(
 codingSessionSchema.index({ userId: 1, sessionDate: -1 });
 codingSessionSchema.index({ sessionDate: 1 });
 codingSessionSchema.index({ userId: 1, startTime: -1 });
+codingSessionSchema.index({ deviceId: 1, startTime: -1 });
 
 // Static method to get sessions for a specific timeframe
 codingSessionSchema.statics.getSessionsForTimeframe = async function (
