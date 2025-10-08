@@ -521,7 +521,7 @@ async function authenticateApiKey(req, res, next) {
             };
 
             console.log("✅ Bearer token accepted for user:", payload.sub);
-            console.log("� Request approved for:", req.method, req.path);
+            console.log("✅ Request approved for:", req.method, req.path);
             return next();
         } catch (error) {
             return handleAuthFailure({
@@ -632,6 +632,9 @@ app.use((req, res, next) => {
     const isPublicEndpoint =
         publicEndpoints.includes(req.path) && req.method === "GET";
 
+    const isPublicLinkCode =
+        req.path.startsWith("/user/link-code/") && req.method === "POST";
+
     const isV1Endpoint = req.path.startsWith("/v1/");
 
     if (
@@ -641,6 +644,7 @@ app.use((req, res, next) => {
         isDiscordOAuth ||
         isPublicBotSharable ||
         isPublicGlobalStats ||
+        isPublicLinkCode ||
         isV1Endpoint
     ) {
         console.log("Public endpoint accessed:", req.method, req.path);
