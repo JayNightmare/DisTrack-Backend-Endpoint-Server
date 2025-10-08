@@ -489,12 +489,13 @@ async function authenticateApiKey(req, res, next) {
         });
     }
 
-    const isBearer = authHeader.toLowerCase().startsWith("bearer ");
+    // Prefer Bearer (access or refresh) over legacy static API key
+    const lower = authHeader.toLowerCase();
+    const isBearer = lower.startsWith("bearer ");
 
     if (isBearer) {
-        const bearerToken = authHeader.slice(7).trim();
-
-        if (!bearerToken) {
+        const tokenCandidate = authHeader.slice(7).trim();
+        if (!tokenCandidate) {
             return handleAuthFailure({
                 req,
                 res,
@@ -503,8 +504,9 @@ async function authenticateApiKey(req, res, next) {
             });
         }
 
+        // First attempt: treat as ACCESS token
         try {
-            const payload = verifySessionAccessToken(bearerToken);
+            const payload = verifySessionAccessToken(tokenCandidate);
             const scopeValue = String(payload.scope || "").trim();
             const scopes = scopeValue ? scopeValue.split(/\s+/) : [];
 
@@ -515,7 +517,7 @@ async function authenticateApiKey(req, res, next) {
             }
 
             req.sessionAccessToken = {
-                token: bearerToken,
+                token: tokenCandidate,
                 payload,
                 scopes,
             };
@@ -523,16 +525,99 @@ async function authenticateApiKey(req, res, next) {
             console.log("✅ Bearer token accepted for user:", payload.sub);
             console.log("✅ Request approved for:", req.method, req.path);
             return next();
-        } catch (error) {
-            return handleAuthFailure({
-                req,
-                res,
-                clientIP,
-                reason: `Invalid bearer token: ${error.message}`,
-            });
+        } catch (err) {
+            const errMsg = err?.message || "";
+            const isExpired =
+                errMsg.includes("jwt expired") ||
+                err.name === "TokenExpiredError";
+
+            if (!isExpired) {
+                // Not an expiry issue -> hard fail
+                return handleAuthFailure({
+                    req,
+                    res,
+                    clientIP,
+                    reason: `Invalid bearer token: ${errMsg}`,
+                });
+            }
+
+            console.log(
+                "♻️ Access token expired. Attempting refresh rotation..."
+            );
+
+            // Attempt silent refresh using supplied token as REFRESH token
+            // Requires device id header
+            const deviceIdRaw =
+                req.headers["x-device-id"] || req.headers["x-deviceid"];
+            const deviceId = normalizeDeviceId(deviceIdRaw);
+
+            if (!deviceId) {
+                return handleAuthFailure({
+                    req,
+                    res,
+                    clientIP,
+                    reason: "Expired access token and no X-Device-Id header for refresh",
+                });
+            }
+
+            try {
+                const refreshDoc = await findValidRefreshToken(
+                    deviceId,
+                    tokenCandidate
+                );
+                if (!refreshDoc) {
+                    return handleAuthFailure({
+                        req,
+                        res,
+                        clientIP,
+                        reason: "Refresh token invalid or revoked",
+                    });
+                }
+
+                const ipHash = hashIp(clientIP);
+                const userAgent = req.headers["user-agent"] || null;
+
+                const { accessToken, refreshToken, expiresIn } =
+                    await rotateRefreshToken(refreshDoc, { ipHash, userAgent });
+
+                // Verify new access token to populate request context
+                const newPayload = verifySessionAccessToken(accessToken);
+                const scopeValue = String(newPayload.scope || "").trim();
+                const scopes = scopeValue ? scopeValue.split(/\s+/) : [];
+
+                req.sessionAccessToken = {
+                    token: accessToken,
+                    payload: newPayload,
+                    scopes,
+                    rotated: true,
+                };
+
+                // Expose new tokens via headers (non-cacheable)
+                res.setHeader("X-New-Access-Token", accessToken);
+                res.setHeader("X-New-Refresh-Token", refreshToken);
+                res.setHeader(
+                    "X-Access-Expires-In",
+                    String(expiresIn || getAccessTokenTtlSeconds() || 0)
+                );
+                res.setHeader("Cache-Control", "no-store");
+
+                console.log(
+                    "🔄 Refresh successful. New access token issued for user:",
+                    newPayload.sub
+                );
+                return next();
+            } catch (refreshErr) {
+                return handleAuthFailure({
+                    req,
+                    res,
+                    clientIP,
+                    reason: `Refresh rotation failed: ${refreshErr.message}`,
+                });
+            }
         }
     }
 
+    // Legacy static API key fallback
     const keyCandidate = authHeader;
     console.log("Expected API key prefix:", API_KEY?.substring(0, 10) + "...");
     console.log(
