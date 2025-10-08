@@ -2111,11 +2111,11 @@ app.delete("/user/link-code/:userId", async (req, res) => {
 // 3. POST /extension/link - body: { linkCode }
 //    Finds user by linkCode, clears linkCode, sets extensionLinked
 app.post("/extension/link", async (req, res) => {
-    const { linkCode, deviceId } = req.body || {};
-    if (!linkCode || !deviceId) {
+    const { linkCode, device_id } = req.body || {};
+    if (!linkCode || !device_id) {
         return res
             .status(400)
-            .json({ message: "linkCode and deviceId are required" });
+            .json({ message: "linkCode and device_id are required" });
     }
     try {
         const clientIP =
