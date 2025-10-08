@@ -720,6 +720,9 @@ app.use((req, res, next) => {
     const isPublicLinkCode =
         req.path.startsWith("/user/link-code/") && req.method === "POST";
 
+    const isPublicExtensionLink =
+        req.path.startsWith("/extension/link") && req.method === "POST";
+
     const isV1Endpoint = req.path.startsWith("/v1/");
 
     if (
@@ -730,6 +733,7 @@ app.use((req, res, next) => {
         isPublicBotSharable ||
         isPublicGlobalStats ||
         isPublicLinkCode ||
+        isPublicExtensionLink ||
         isV1Endpoint
     ) {
         console.log("Public endpoint accessed:", req.method, req.path);
@@ -1951,7 +1955,7 @@ app.post("/v1/sessions", async (req, res) => {
 // Helper to generate a 6-character alphanumeric code (uppercase letters & digits)
 function generateLinkCode() {
     const length = LINK_CODE_LENGTH || 6;
-    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // exclude ambiguous chars
+    const chars = "ABCDEFGHJKLMNOPQRSTUVWXYZ1234567890"; // exclude ambiguous chars
     let code = "";
     for (let i = 0; i < length; i++) {
         const idx = crypto.randomInt(0, chars.length);
@@ -2107,9 +2111,11 @@ app.delete("/user/link-code/:userId", async (req, res) => {
 // 3. POST /extension/link - body: { linkCode }
 //    Finds user by linkCode, clears linkCode, sets extensionLinked
 app.post("/extension/link", async (req, res) => {
-    const { linkCode } = req.body || {};
-    if (!linkCode) {
-        return res.status(400).json({ message: "linkCode is required" });
+    const { linkCode, deviceId } = req.body || {};
+    if (!linkCode || !deviceId) {
+        return res
+            .status(400)
+            .json({ message: "linkCode and deviceId are required" });
     }
     try {
         const clientIP =
