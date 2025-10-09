@@ -4,16 +4,14 @@ const crypto = require("crypto");
 const app = express();
 const { connectToDatabase } = require("./database.js");
 const PORT = 7071;
-const User = require("./User.js");
-const Device = require("./Device.js");
-const LinkSession = require("./LinkSession.js");
-const CodingSession = require("./CodingSession.js");
-const LeaderboardService = require("./LeaderboardService.js");
-const StatsService = require("./StatsService.js");
-const SnapshotScheduler = require("./SnapshotScheduler.js");
-const CronScheduler = require("./CronScheduler.js");
-const MonitoringService = require("./MonitoringService.js");
-const DataRetentionService = require("./DataRetentionService.js");
+const User = require("./models/User.js");
+const CodingSession = require("./models/CodingSession.js");
+const LeaderboardService = require("./Services/LeaderboardService.js");
+const StatsService = require("./Services/StatsService.js");
+const SnapshotScheduler = require("./scheduler/SnapshotScheduler.js");
+const CronScheduler = require("./scheduler/CronScheduler.js");
+const MonitoringService = require("./Services/MonitoringService.js");
+const DataRetentionService = require("./Services/DataRetentionService.js");
 const axios = require("axios");
 const passport = require("passport");
 const DiscordStrategy = require("passport-discord").Strategy;
@@ -34,6 +32,7 @@ const {
     EXTENSION_LINK_LOCKOUT_MS,
     LINK_WEBHOOK_URL,
 } = require("./config.js");
+const { generateAPIKey, botToken } = require("./utils/generater.js");
 
 function getClientIP(req) {
     return (
@@ -45,8 +44,6 @@ function getClientIP(req) {
         "unknown"
     );
 }
-
-const sessionDailyTracker = new Map();
 
 async function recordSessionForUser({
     userId,
@@ -201,8 +198,6 @@ async function recordSessionForUser({
 
     return { created: true, session: newSession, user };
 }
-
-const { generateAPIKey, botToken } = require("./utils/generater.js");
 
 app.use(express.json());
 
@@ -1671,14 +1666,14 @@ app.post("/extension/key/auth/:deviceId/:linkCode", async (req, res) => {
 
     const data = User.findOne({ linkCode });
 
-    const botToken = botToken();
+    const token = botToken();
 
     res.status(200).json({
         success: true,
         user: {
             linkAPIKey: data.linkAPIKey,
         },
-        botToken: botToken,
+        botToken: token,
     });
 
     if (!data) {

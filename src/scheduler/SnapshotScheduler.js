@@ -162,7 +162,7 @@ class SnapshotScheduler {
         console.log("=== Snapshot System Health Check ===");
 
         try {
-            const LeaderboardSnapshot = require("./LeaderboardSnapshot.js");
+            const LeaderboardSnapshot = require("../models/LeaderboardSnapshot.js");
 
             // Check if we have recent snapshots for each timeframe
             const timeframes = ["day", "week", "month", "allTime"];
