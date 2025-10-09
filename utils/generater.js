@@ -13,4 +13,5 @@ export function generateAPIKey() {
 
 export function botToken() {
     const botToken = DISCORD_BOT_TOKEN;
+    return botToken;
 }
