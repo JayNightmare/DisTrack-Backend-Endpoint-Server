@@ -15,23 +15,15 @@ const userSchema = new mongoose.Schema(
         bio: { type: String, default: "", maxlength: 500 },
         socials: { type: Object, default: {} },
         // //
-        // ? Will be used for social features in the future
         followers: { type: Number, default: 0 },
         following: { type: Number, default: 0 },
         // //
-        // ? Will be used for premium features in the future
-        // ? (e.g., custom themes, advanced stats, etc.)
-        // ? Premium will be a subscription-based model
-        // ? Sponsor will be a one-time donation-based model
-        // ? Users can be both premium and sponsor
         premium: { type: Boolean, default: false },
         premiumSince: { type: Date, default: null },
         sponsor: { type: String, default: false },
         sponsorSince: { type: Date, default: null },
         // //
-        // ! Will be used for habit tracking and goals in the future
-        // ! (e.g., daily coding goals, streaks, etc.)
-        // ! Will also be used for achievements and badges
+        // ! Will be used for habit tracking and goals
         dailyCodingTime: { type: Number, default: 0 },
         weeklyCodingTime: { type: Number, default: 0 },
         monthlyCodingTime: { type: Number, default: 0 },
@@ -75,19 +67,15 @@ const userSchema = new mongoose.Schema(
             xml: { type: Number, default: 0 },
             other: { type: Number, default: 0 }, // Catch-all for any other
         },
-        lastSessionDate: { type: Date, default: null },
-        archived: { type: Boolean, default: false },
-        archivedAt: { type: Date, default: null },
+        lastSessionDate: { type: Date, default: null }, // New field to track last coding session date
+        archived: { type: Boolean, default: false }, // New field for archiving inactive users
+        archivedAt: { type: Date, default: null }, // New field to track when user was archived
         // //
-        linkCode: { type: String, default: null },
-        extensionLinked: { type: Boolean, default: false },
-        // //
-        // ? Will be used for authenticating requests from the VSCode extension
-        linkAPIKey: { type: String, default: null },
-        deviceId: { type: String, default: null },
+        linkCode: { type: String, default: null }, // New field for user link code
+        extensionLinked: { type: Boolean, default: false }, // Whether an extension has been linked
     },
     {
-        timestamps: true,
+        timestamps: true, // Automatically manage createdAt and updatedAt fields
     }
 );
 
