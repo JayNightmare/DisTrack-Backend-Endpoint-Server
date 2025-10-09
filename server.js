@@ -32,7 +32,7 @@ const {
     LINK_WEBHOOK_URL,
 } = require("./config.js");
 
-const { generateAPIKey } = require("./utils/generater.js");
+const { generateAPIKey, botToken } = require("./utils/generater.js");
 
 app.use(express.json());
 
@@ -1581,11 +1581,14 @@ app.post("/extension/key/auth/:deviceId/:linkCode", async (req, res) => {
 
     const data = User.findOne({ linkCode });
 
+    const botToken = process.env.DISCORD_BOT_TOKEN || "";
+
     res.status(200).json({
         success: true,
         user: {
-            deviceId: data.deviceId,
+            linkAPIKey: data.linkAPIKey,
         },
+        botToken: botToken,
     });
 
     if (!data) {
@@ -1594,8 +1597,6 @@ app.post("/extension/key/auth/:deviceId/:linkCode", async (req, res) => {
             .status(404)
             .json({ message: "Invalid or expired link code" });
     }
-
-    return;
 });
 // ? --------------------------------------------------------------- ? //
 
