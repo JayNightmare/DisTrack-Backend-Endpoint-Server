@@ -281,6 +281,8 @@ async function recordSessionForUser({
     return { created: true, session: newSession, user };
 }
 
+const { generateAPIKey, botToken } = require("./utils/generater.js");
+
 app.use(express.json());
 
 // * Session Configuration
@@ -2111,11 +2113,9 @@ app.delete("/user/link-code/:userId", async (req, res) => {
 // 3. POST /extension/link - body: { linkCode }
 //    Finds user by linkCode, clears linkCode, sets extensionLinked
 app.post("/extension/link", async (req, res) => {
-    const { linkCode, device_id } = req.body || {};
-    if (!linkCode || !device_id) {
-        return res
-            .status(400)
-            .json({ message: "linkCode and device_id are required" });
+    const { linkCode, deviceId } = req.body || {};
+    if (!linkCode) {
+        return res.status(400).json({ message: "linkCode is required" });
     }
     try {
         const clientIP =
@@ -2140,8 +2140,16 @@ app.post("/extension/link", async (req, res) => {
                 .json({ message: "Invalid or expired link code" });
         }
 
-        user.linkCode = null; // consume code
+        try {
+            const apiKey = generateAPIKey();
+            user.linkAPIKey = apiKey.key;
+        } catch (err) {
+            throw new err();
+        }
+
+        user.linkCode = null;
         user.extensionLinked = true;
+        user.deviceId = deviceId;
         await user.save();
         console.log(
             `[AUDIT] Extension linked for user ${user.userId} from ${clientIP}`
@@ -2206,6 +2214,42 @@ app.post("/extension/link", async (req, res) => {
         res.status(500).json({ message: "Error linking extension" });
     }
 });
+
+// //
+
+// ? ----------------------Grab API Key----------------------------- ? //
+app.post("/extension/key/auth/:deviceId/:linkCode", async (req, res) => {
+    const { deviceId, linkCode } = req.params;
+    const clientIP =
+        req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
+        req.ip ||
+        "unknown";
+
+    if (!deviceId || !linkCode)
+        return res.status(400).json("Auth requires valid link code");
+
+    const data = User.findOne({ linkCode });
+
+    const botToken = process.env.DISCORD_BOT_TOKEN || "";
+
+    res.status(200).json({
+        success: true,
+        user: {
+            linkAPIKey: data.linkAPIKey,
+        },
+        botToken: botToken,
+    });
+
+    if (!data) {
+        recordExtensionFailure(clientIP);
+        return res
+            .status(404)
+            .json({ message: "Invalid or expired link code" });
+    }
+});
+// ? --------------------------------------------------------------- ? //
+
+// //
 
 // ! Legacy API endpoints (keeping for backward compatibility)
 
