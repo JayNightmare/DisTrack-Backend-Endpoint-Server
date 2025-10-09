@@ -6,7 +6,7 @@ module.exports = {
     API_KEY: process.env.API_KEY,
     DISCORD_CLIENT_ID: process.env.DISCORD_CLIENT_ID,
     DISCORD_CLIENT_SECRET: process.env.DISCORD_CLIENT_SECRET,
-    DISCORD_BOT_TOKEN: "",
+    DISCORD_BOT_TOKEN: process.env.DISCORD_BOT_TOKEN,
     DISCORD_CALLBACK_URL:
         process.env.DISCORD_CALLBACK_URL || "url to discord auth call back",
     JWT_SECRET: process.env.JWT_SECRET || "your-jwt-secret-key",
