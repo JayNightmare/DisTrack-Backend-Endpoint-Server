@@ -1,6 +1,6 @@
 const cron = require("node-cron");
 const SnapshotScheduler = require("./SnapshotScheduler.js");
-const DataRetentionService = require("./DataRetentionService.js");
+const DataRetentionService = require("../services/DataRetentionService.js");
 
 class CronScheduler {
     static initializeJobs() {
