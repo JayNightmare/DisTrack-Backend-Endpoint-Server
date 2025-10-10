@@ -1,6 +1,6 @@
-const CodingSession = require("./CodingSession.js");
-const LeaderboardSnapshot = require("./LeaderboardSnapshot.js");
-const User = require("./User.js");
+const CodingSession = require("./src/models/CodingSession.js");
+const LeaderboardSnapshot = require("./src/models/LeaderboardSnapshot.js");
+const User = require("./src/models/User.js");
 
 class DataRetentionService {
     static retentionPolicies = {
@@ -96,7 +96,7 @@ class DataRetentionService {
         });
 
         // Save aggregated data
-        const AggregatedSession = require("./AggregatedSession.js");
+        const AggregatedSession = require("./src/models/AggregatedSession.js");
         const aggregatedSessions = Array.from(aggregationMap.values()).map(
             (agg) => ({
                 ...agg,

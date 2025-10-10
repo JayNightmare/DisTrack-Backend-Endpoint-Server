@@ -1,5 +1,5 @@
-const User = require("./User.js");
-const CodingSession = require("./CodingSession.js");
+const User = require("../models/User.js");
+const CodingSession = require("../models/CodingSession.js");
 
 // ---------------- Helper date utilities ---------------- //
 function startOfDay(d) {

@@ -1,6 +1,6 @@
-const User = require("./User.js");
-const LeaderboardSnapshot = require("./LeaderboardSnapshot.js");
-const CodingSession = require("./CodingSession.js");
+const User = require("./src/models/User.js");
+const LeaderboardSnapshot = require("./src/models/LeaderboardSnapshot.js");
+const CodingSession = require("./src/models/CodingSession.js");
 
 class LeaderboardService {
     /**
