@@ -1,8 +1,8 @@
-const { connectToDatabase } = require("./database.js");
-const User = require("./User.js");
-const CodingSession = require("./CodingSession.js");
-const LeaderboardService = require("./LeaderboardService.js");
-const LeaderboardSnapshot = require("./LeaderboardSnapshot.js");
+const { connectToDatabase } = require("../database.js");
+const User = require("../src/models/User.js");
+const CodingSession = require("../src/models/CodingSession.js");
+const LeaderboardService = require("../LeaderboardService.js");
+const LeaderboardSnapshot = require("../src/models/LeaderboardSnapshot.js");
 
 async function testSessionIntegration() {
     console.log("=== Testing Session Integration ===\n");

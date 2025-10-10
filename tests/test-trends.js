@@ -1,6 +1,6 @@
-const LeaderboardService = require("./LeaderboardService.js");
-const SnapshotScheduler = require("./SnapshotScheduler.js");
-const { connectToDatabase } = require("./database.js");
+const LeaderboardService = require("../LeaderboardService.js");
+const SnapshotScheduler = require("../SnapshotScheduler.js");
+const { connectToDatabase } = require("../database.js");
 
 async function testLeaderboardTrends() {
     console.log("=== Testing Leaderboard Trends System ===\n");
