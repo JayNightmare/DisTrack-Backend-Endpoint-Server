@@ -1,6 +1,6 @@
-const CodingSession = require("./src/models/CodingSession.js");
-const LeaderboardSnapshot = require("./src/models/LeaderboardSnapshot.js");
-const User = require("./src/models/User.js");
+const CodingSession = require("../models/CodingSession.js");
+const LeaderboardSnapshot = require("../models/LeaderboardSnapshot.js");
+const User = require("../models/User.js");
 
 class DataRetentionService {
     static retentionPolicies = {

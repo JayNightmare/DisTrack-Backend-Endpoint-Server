@@ -1,4 +1,4 @@
-const LeaderboardService = require("./LeaderboardService.js");
+const LeaderboardService = require("../services/LeaderboardService.js");
 
 class SnapshotScheduler {
     /**
