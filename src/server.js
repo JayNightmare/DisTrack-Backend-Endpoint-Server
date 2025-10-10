@@ -6,12 +6,15 @@ const { connectToDatabase } = require("./database.js");
 const PORT = 7071;
 const User = require("./models/User.js");
 const CodingSession = require("./models/CodingSession.js");
-const LeaderboardService = require("./Services/LeaderboardService.js");
-const StatsService = require("./Services/StatsService.js");
+// //
 const SnapshotScheduler = require("./scheduler/SnapshotScheduler.js");
 const CronScheduler = require("./scheduler/CronScheduler.js");
-const MonitoringService = require("./Services/MonitoringService.js");
-const DataRetentionService = require("./Services/DataRetentionService.js");
+// //
+const LeaderboardService = require("./services/LeaderboardService.js");
+const StatsService = require("./services/StatsService.js");
+const MonitoringService = require("./services/MonitoringService.js");
+const DataRetentionService = require("./services/DataRetentionService.js");
+// //
 const axios = require("axios");
 const passport = require("passport");
 const DiscordStrategy = require("passport-discord").Strategy;
