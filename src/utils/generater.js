@@ -1,6 +1,6 @@
 const { DISCORD_BOT_TOKEN } = require("../config.js");
 
-export function generateAPIKey() {
+function generateAPIKey() {
     const length = 32;
     const chars =
         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -11,7 +11,11 @@ export function generateAPIKey() {
     return { key };
 }
 
-export function botToken() {
-    const botToken = DISCORD_BOT_TOKEN;
-    return botToken;
+function botToken() {
+    return DISCORD_BOT_TOKEN;
 }
+
+module.exports = {
+    generateAPIKey,
+    botToken,
+};
