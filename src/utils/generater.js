@@ -1,4 +1,4 @@
-import { DISCORD_BOT_TOKEN } from "../config.js";
+const { DISCORD_BOT_TOKEN } = require("../config.js");
 
 export function generateAPIKey() {
     const length = 32;
