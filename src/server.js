@@ -1557,6 +1557,8 @@ app.post("/extension/link", async (req, res) => {
         return res.status(400).json({ message: "linkCode is required" });
     }
     try {
+        const token = botToken();
+
         const clientIP =
             req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
             req.ip ||
@@ -1647,6 +1649,9 @@ app.post("/extension/link", async (req, res) => {
                 extensionLinked: user.extensionLinked,
                 totalCodingTime: user.totalCodingTime,
             },
+            discord: {
+                token: token,
+            },
         });
     } catch (err) {
         console.error("Error linking extension:", err);
@@ -1676,7 +1681,9 @@ app.post("/extension/key/auth/:deviceId/:linkCode", async (req, res) => {
         user: {
             linkAPIKey: data.linkAPIKey,
         },
-        botToken: token,
+        discord: {
+            token: token,
+        },
     });
 
     if (!data) {
