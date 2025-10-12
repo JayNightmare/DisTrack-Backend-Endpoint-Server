@@ -36,6 +36,7 @@ const {
     LINK_WEBHOOK_URL,
 } = require("./config.js");
 const { generateAPIKey, botToken } = require("./utils/generater.js");
+const { error } = require("console");
 
 function getClientIP(req) {
     return (
@@ -558,6 +559,9 @@ app.use((req, res, next) => {
     const isPublicExtensionLink =
         req.path.startsWith("/extension/link") && req.method === "POST";
 
+    const isPublicExtensionAuth =
+        req.path.startsWith("/extension/key/auth/") && req.method === "GET";
+
     if (
         isPublicEndpoint ||
         isPublicLeaderboard ||
@@ -566,7 +570,8 @@ app.use((req, res, next) => {
         isPublicBotSharable ||
         isPublicGlobalStats ||
         isPublicLinkCode ||
-        isPublicExtensionLink
+        isPublicExtensionLink ||
+        isPublicExtensionAuth
     ) {
         console.log("Public endpoint accessed:", req.method, req.path);
         return next();
@@ -1559,6 +1564,14 @@ app.post("/extension/link", async (req, res) => {
     try {
         const token = botToken();
 
+        // //
+
+        let id;
+        if (deviceId.startsWith("dvc-")) id = deviceId.split("dvc-");
+        else throw console.error("Invalid Device ID");
+
+        // //
+
         const clientIP =
             req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
             req.ip ||
@@ -1573,6 +1586,8 @@ app.post("/extension/link", async (req, res) => {
             });
         }
 
+        // //
+
         const user = await User.findOne({ linkCode });
         if (!user) {
             recordExtensionFailure(clientIP);
@@ -1581,17 +1596,15 @@ app.post("/extension/link", async (req, res) => {
                 .json({ message: "Invalid or expired link code" });
         }
 
-        try {
-            const apiKey = generateAPIKey();
-            user.linkAPIKey = apiKey.key;
-        } catch (err) {
-            throw new err();
-        }
+        const apiKey = generateAPIKey();
 
+        // //
+        user.linkAPIKey = apiKey.key;
         user.linkCode = null;
         user.extensionLinked = true;
-        user.deviceId = deviceId;
+        user.deviceId = id;
         await user.save();
+        // //
         console.log(
             `[AUDIT] Extension linked for user ${user.userId} from ${clientIP}`
         );
@@ -1662,7 +1675,7 @@ app.post("/extension/link", async (req, res) => {
 // //
 
 // ? ----------------------Grab API Key----------------------------- ? //
-app.post("/extension/key/auth/:deviceId/:linkCode", async (req, res) => {
+app.get("/extension/key/auth/:deviceId/:linkCode", async (req, res) => {
     const { deviceId, linkCode } = req.params;
     const clientIP =
         req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
