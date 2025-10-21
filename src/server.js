@@ -402,6 +402,8 @@ async function authenticateApiKey(req, res, next) {
     console.log("🔐 Auth check initiated...");
     console.log("📍 Client IP:", clientIP);
     console.log("🧾 Authorization header present:", Boolean(authHeader));
+    console.log("🪵 Request Object:", req);
+    console.log("🪵 Response Object:", res);
 
     if (!authHeader) {
         return handleAuthFailure({
