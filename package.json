@@ -2,9 +2,9 @@
   "name": "distrack-endpoint",
   "version": "0.3.1",
   "description": "Endpoints for DisTrack Extension",
-  "main": "server.js",
+  "main": "src/server.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "node src/server.js",
     "test-trends": "node test-trends.js",
     "test-sessions": "node test-session-integration.js",
     "test-auth": "node scripts/test-token-service.js"
