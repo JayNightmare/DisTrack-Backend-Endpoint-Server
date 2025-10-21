@@ -394,7 +394,7 @@ app.use((req, res, next) => {
 
 // * Enhanced Middleware for API key authentication with geo-location tracking
 async function authenticateApiKey(req, res, next) {
-    const authHeader = req.headers["authorization"]?.trim();
+    const authHeader = req.headers["Authorization"]?.trim();
     const clientIP = getClientIP(req);
 
     console.log("--------------------------");
@@ -408,21 +408,24 @@ async function authenticateApiKey(req, res, next) {
             res,
             clientIP,
             reason: "Missing authorization header",
+            apiKey: tokenCandidate,
         });
     }
 
     // Prefer Bearer (access or refresh) over legacy static API key
     const lower = authHeader.toLowerCase();
     const isBearer = lower.startsWith("bearer ");
+    let tokenCandidate;
 
     if (isBearer) {
-        const tokenCandidate = authHeader.slice(7).trim();
+        tokenCandidate = authHeader.slice(7).trim();
         if (!tokenCandidate) {
             return handleAuthFailure({
                 req,
                 res,
                 clientIP,
                 reason: "Empty bearer token",
+                apiKey: tokenCandidate,
             });
         }
 
@@ -436,6 +439,7 @@ async function authenticateApiKey(req, res, next) {
                     res,
                     clientIP,
                     reason: "Invalid bearer token",
+                    apiKey: tokenCandidate,
                 });
             }
 
@@ -467,6 +471,7 @@ async function authenticateApiKey(req, res, next) {
             res,
             clientIP,
             reason: "Invalid API key",
+            apiKey: tokenCandidate,
         });
     }
 
@@ -475,9 +480,10 @@ async function authenticateApiKey(req, res, next) {
     return next();
 }
 
-async function handleAuthFailure({ req, res, clientIP, reason }) {
+async function handleAuthFailure({ req, res, clientIP, reason, apiKey }) {
     console.log("❌ Authentication FAILED! 🚫");
     console.log("📄 Reason:", reason);
+    console.log("🐌 API Key Provided:", apiKey);
     console.log("🎭 Someone's trying to be sneaky... but we caught them! 😏");
     console.log("🔍 Investigating this suspicious character...");
     console.log("🌐 Path attempted:", req.method, req.path);
