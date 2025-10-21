@@ -396,6 +396,7 @@ app.use((req, res, next) => {
 async function authenticateApiKey(req, res, next) {
     const authHeader = req.headers["Authorization"]?.trim();
     const clientIP = getClientIP(req);
+    let tokenCandidate = req.authToken || null;
 
     console.log("--------------------------");
     console.log("🔐 Auth check initiated...");
@@ -415,7 +416,6 @@ async function authenticateApiKey(req, res, next) {
     // Prefer Bearer (access or refresh) over legacy static API key
     const lower = authHeader.toLowerCase();
     const isBearer = lower.startsWith("bearer ");
-    let tokenCandidate;
 
     if (isBearer) {
         tokenCandidate = authHeader.slice(7).trim();
